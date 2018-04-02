@@ -23,8 +23,8 @@ class Config:
         self.hidden_size = 512
         self.NUM_OF_SAMPLES = None
         self.TEST_TRAIN_SPLIT = 0.9
-        self.print_every = 100
-        self.evaluate_every = 100
+        self.print_every = 500
+        self.evaluate_every = 2000
         self.dropout_p = 0.25
         self.EMBEDDING_VEC_SIZE = 50
         self.MINI_BATCH_SIZE = 10
