@@ -72,14 +72,14 @@ class Config:
         self.glove_300d_sample = self.data_dir + "embeddings/glove/glove.sample.300d.txt.zip"
 
     def create_run_dir(self,run_tag, operation):
+        if operation == 'train_ptrnet':
+            self.neural_model_dir += run_tag + "_" + str(self.LR) + '_' + str(self.ADA_GRAD_L2) + \
+                                     '_' + str(self.hidden_size) + \
+                                     '_' + str(self.dropout_p) + \
+                                     '_' + self.run_start_time + '/'
 
-        self.neural_model_dir += run_tag + "_" + str(self.LR) + '_' + str(self.ADA_GRAD_L2) + \
-                                 '_' + str(self.hidden_size) + \
-                                 '_' + str(self.dropout_p) + \
-                                 '_' + self.run_start_time + '/'
-
-        if not os.path.isdir(self.neural_model_dir):
-            os.mkdir(self.neural_model_dir)
+            if not os.path.isdir(self.neural_model_dir):
+                os.mkdir(self.neural_model_dir)
 
 config = Config()
 

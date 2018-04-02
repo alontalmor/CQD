@@ -56,6 +56,7 @@ class WebAsKB_PtrVocabNet_Model():
         accuracy += ((pd.Series(delta)==0)*1.0).mean()
 
 
+
         return accuracy
 
     def print_stats(self, sample_size):
