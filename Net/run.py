@@ -83,7 +83,7 @@ class NNRun():
     def evaluate(self, gen_model_output=True):
         model_output = []
         pairs_dev = [self.pairs_dev[i] for i in range(len(self.pairs_dev))]
-        sample_size = 1000#len(self.pairs_dev)
+        sample_size = min(config.max_evalset_size,len(self.pairs_dev))
         self.model.init_stats()
 
         self.test_loss = 0
@@ -101,7 +101,7 @@ class NNRun():
             if result == [] or len(testing_pair['y'])==0:
                 continue
 
-            accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], result)
+            accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], result, testing_pair['aux_data'])
 
         self.curr_accuracy = accuracy_avg / sample_size
 

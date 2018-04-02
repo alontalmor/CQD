@@ -46,7 +46,7 @@ class WebAsKB_PtrNet_Model():
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
 
-    def evaluate_accuracy(self, target_variable, result):
+    def evaluate_accuracy(self, target_variable, result, aux_data):
         accuracy = 0
         if config.use_cuda:
             delta = [abs(target_variable.cpu().view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]

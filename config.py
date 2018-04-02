@@ -33,6 +33,7 @@ class Config:
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
         self.gen_model_output = False
+        self.max_evalset_size = 4000
 
         # Number of training iteration with no substantial dev accuracy improvement to stop training ("early stopping")
         self.NO_IMPROVEMENT_ITERS_TO_STOP = 50000

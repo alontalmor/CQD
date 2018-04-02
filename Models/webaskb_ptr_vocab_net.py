@@ -46,14 +46,30 @@ class WebAsKB_PtrVocabNet_Model():
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
 
-    def evaluate_accuracy(self, target_variable, result):
+    def evaluate_accuracy(self, target_variable, result, aux_data):
         accuracy = 0
         if config.use_cuda:
             delta = [abs(target_variable.cpu().view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
         else:
             delta = [abs(target_variable.view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
 
-        accuracy += ((pd.Series(delta)==0)*1.0).mean()
+        if delta[0] == 0:
+            accuracy += 0.4
+
+        accuracy += ((pd.Series(delta[1:]) == 0) * 1.0).mean() * 0.6
+        accuracy += ((pd.Series(delta[1:]) == 1) * 1.0).mean() * 0.3
+        accuracy += ((pd.Series(delta[1:]) == 2) * 1.0).mean() * 0.1
+
+        abs_delta_array = np.abs(np.array(delta))
+        self.exact_match += (np.mean((abs_delta_array == 0) * 1.0) == 1.0) * 1.0
+
+        if config.use_cuda:
+            target = target_variable.cpu().view(-1).data.numpy()
+        else:
+            target = target_variable.view(-1).data.numpy()
+
+        if target[0] == result[0]:
+            self.comp_accuracy += 1
 
 
 
@@ -181,7 +197,7 @@ class WebAsKB_PtrVocabNet_Model():
             if len(target_variable)>0:
                 loss += self.criterion(decoder_output, target_variable[di])
 
-            result.append(np.argmax(decoder_attention.data[0].tolist()))
+            result.append(np.argmax(decoder_output.data[0].tolist()))
 
         if type(loss)!=int:
             loss_value = loss.data[0] / target_length
