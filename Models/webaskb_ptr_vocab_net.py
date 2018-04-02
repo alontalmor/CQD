@@ -20,8 +20,9 @@ class WebAsKB_PtrVocabNet_Model():
             self.encoder = EncoderRNN(input_lang.n_words, config.hidden_size)
             self.decoder = AttnDecoderRNN(config.output_size, config.hidden_size)
 
-        self.criterion = nn.NLLLoss()
-        
+        #self.criterion = nn.NLLLoss()
+        self.criterion = nn.CrossEntropyLoss()
+
     def init_stats(self):
         self.avg_exact_token_match = 0
         self.exact_match = 0
