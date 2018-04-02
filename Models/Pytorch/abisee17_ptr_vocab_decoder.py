@@ -62,7 +62,7 @@ class AttnDecoderRNN(nn.Module):
         # NOTE!! we should use decoder input not decoder_input_embedded
         Pgen = self.sigmoid(self.pgen_linear(torch.cat((attn_applied[0], decoder_hidden[0] , decoder_input_embedded[0]), 1)))
 
-        softmax_output = torch.cat(((1 - Pgen) * F.softmax(attn_weights) , Pgen * F.softmax(self.out(output[0]))),1)
+        softmax_output = torch.log(torch.cat(((1 - Pgen) * F.softmax(attn_weights) , Pgen * F.softmax(self.out(output[0]))),1))
 
         return softmax_output, decoder_hidden, attn_weights
 
