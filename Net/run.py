@@ -1,4 +1,4 @@
-from config import config
+from config import *
 from io import open
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ class NNRun():
         self.pairs_train = pairs_train
         self.pairs_dev = pairs_dev
         self.model = model
-
+        self.iteration = 0
         model.init_optimizers()
 
     def run_training(self):
@@ -67,7 +67,9 @@ class NNRun():
 
             if self.iteration % config.print_every == 0:
                 print('--- iteration ' + str(self.iteration) +  ' run-time ' + str(datetime.datetime.now() - self.start) +  ' --------')
-                print('trainset loss %.4f' % (self.train_loss / config.print_every))
+                config.write_log('INFO', 'Train stats', {'trainset loss': round(self.train_loss / config.print_every, 4) , \
+                                                         'iteration':self.iteration})
+                #print('trainset loss %.4f' % (self.train_loss / config.print_every))
                 self.train_loss = 0
 
             if self.iteration % config.evaluate_every == 0:
@@ -82,6 +84,7 @@ class NNRun():
 
     def evaluate(self, gen_model_output=True):
         model_output = []
+        model_format_errors = {}
         pairs_dev = [self.pairs_dev[i] for i in range(len(self.pairs_dev))]
         sample_size = min(config.max_evalset_size,len(self.pairs_dev))
         self.model.init_stats()
@@ -89,26 +92,47 @@ class NNRun():
         self.test_loss = 0
         accuracy_avg = 0
         for test_iter in range(0, sample_size):
+            if test_iter % 200 == 0:
+                print(test_iter)
+
             testing_pair = pairs_dev[test_iter]
 
             test_loss , result, loss  = self.model.forward(testing_pair['x'], testing_pair['y'])
             self.test_loss += test_loss
 
+            # generating model output
             if gen_model_output and config.gen_model_output:
-                model_output += self.model.format_model_output(testing_pair, result)
+                try:
+                    model_output +=  self.model.format_model_output(testing_pair, result)
+                except Exception as inst:
+                    if inst.args[0] == 'format_model_output_error':
+                        if inst.args[1] in model_format_errors:
+                            model_format_errors[inst.args[1]] += 1
+                        else:
+                            model_format_errors[inst.args[1]] = 1
+                    else:
+                        print(traceback.format_exc())
+                    # adding empty output
+                    model_output += [{'ID': testing_pair['aux_data']['ID'], 'question': testing_pair['aux_data']['question'], \
+                           'answers': testing_pair['aux_data']['answers']}]
 
             # cases in which no result or target exist will be considered a mistake (equivalent to accuracy append 0)
-            if result == [] or len(testing_pair['y'])==0:
+            if result == [] or len(testing_pair['y']) == 0:
                 continue
 
             accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], result, testing_pair['aux_data'])
 
         self.curr_accuracy = accuracy_avg / sample_size
 
-        print('evalset loss %.4f' % (self.test_loss/sample_size))
-        print('adjusted accuracy %.4f' % (self.curr_accuracy))
+        detailed_stats = self.model.calc_detailed_stats(sample_size)
+        detailed_stats.update({'evalset loss': round(self.test_loss / sample_size, 4), \
+                                                      'adjusted accuracy': round(self.curr_accuracy, 4), \
+                                                      'iteration': self.iteration})
+        config.write_log('INFO', 'Evaluation stats', detailed_stats )
+        config.write_log('INFO', 'Model Format Errors', model_format_errors)
 
-        self.model.print_stats(sample_size)
+        #print('evalset loss %.4f' % (self.test_loss/sample_size))
+        #print('adjusted accuracy %.4f' % (self.curr_accuracy))
 
         if gen_model_output and config.gen_model_output:
             return model_output

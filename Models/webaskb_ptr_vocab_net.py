@@ -11,7 +11,10 @@ from Models.Pytorch.abisee17_ptr_vocab_decoder import AttnDecoderRNN
 from config import config
 
 class WebAsKB_PtrVocabNet_Model():
-    def __init__(self , input_lang):
+    def __init__(self , input_lang, output_lang):
+
+        self.input_lang = input_lang
+        self.output_lang = output_lang
 
         if config.LOAD_SAVED_MODEL:
             self.encoder = torch.load(config.neural_model_dir  + 'encoder.pkl')
@@ -20,8 +23,8 @@ class WebAsKB_PtrVocabNet_Model():
             self.encoder = EncoderRNN(input_lang.n_words, config.hidden_size)
             self.decoder = AttnDecoderRNN(config.output_size, config.hidden_size)
 
-        #self.criterion = nn.NLLLoss()
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.NLLLoss()
+        #self.criterion = nn.CrossEntropyLoss()
 
     def init_stats(self):
         self.avg_exact_token_match = 0
@@ -76,7 +79,7 @@ class WebAsKB_PtrVocabNet_Model():
 
         return accuracy
 
-    def print_stats(self, sample_size):
+    def calc_detailed_stats(self, sample_size):
 
         comp_accuracy_avg = self.comp_accuracy / sample_size
         p1_accuracy_avg = self.p1_accuracy / sample_size
@@ -84,74 +87,77 @@ class WebAsKB_PtrVocabNet_Model():
         p1_1_right_accuracy_avg = self.p1_1_right_accuracy / sample_size
         p1_1_left_accuracy_avg = self.p1_1_left_accuracy / sample_size
 
-        print('avg_exact_token_match %.4f' % (self.avg_exact_token_match / sample_size))
-        print('exact_match %.4f' % (self.exact_match / sample_size))
-        print('avg_one_tol_token_match %.4f' % (self.avg_one_tol_token_match / sample_size))
-        print('exact_match_one_tol %.4f' % (self.exact_match_one_tol / sample_size))
+        return {'exact_match':self.exact_match / sample_size, \
+                    'comp_accuracy':comp_accuracy_avg}
 
-        print('comp_accuracy %.4f' % (comp_accuracy_avg))
-        print('p1_accuracy %.4f' % (p1_accuracy_avg))
-        print('p2_accuracy %.4f' % (p2_accuracy_avg))
-        print('p1_1_right_accuracy %.4f' % (p1_1_right_accuracy_avg))
-        print('p1_1_left_accuracy %.4f' % (p1_1_left_accuracy_avg))
+        #print('avg_exact_token_match %.4f' % (self.avg_exact_token_match / sample_size))
+        #print('exact_match %.4f' % (self.exact_match / sample_size))
+        #print('avg_one_tol_token_match %.4f' % (self.avg_one_tol_token_match / sample_size))
+        #print('exact_match_one_tol %.4f' % (self.exact_match_one_tol / sample_size))
 
-    def format_model_output(self,pairs_dev, result):
+        #print('comp_accuracy %.4f' % (comp_accuracy_avg))
+        #print('p1_accuracy %.4f' % (p1_accuracy_avg))
+        #print('p2_accuracy %.4f' % (p2_accuracy_avg))
+        #print('p1_1_right_accuracy %.4f' % (p1_1_right_accuracy_avg))
+        #print('p1_1_left_accuracy %.4f' % (p1_1_left_accuracy_avg))
+
+    def format_model_output(self,pairs_dev, model_out_seq):
+        output_lang = self.output_lang
         input_tokens = [token['dependentGloss'] for token in pairs_dev['aux_data']['sorted_annotations']]
 
-        output_sup = pairs_dev['y'].view(-1).data.numpy()
+        if len(model_out_seq)==0:
+            raise Exception('format_model_output_error', 'zero len output')
 
-        comp_names = ['composition', 'conjunction']
-        comp = comp_names[int(result[0]) - 1]
+        if model_out_seq[0] == output_lang.word2index['Comp(']+config.MAX_LENGTH:
+            comp = 'composition'
+        elif model_out_seq[0] == output_lang.word2index['Conj(']+config.MAX_LENGTH:
+            comp = 'conjunction'
+        else:
+            raise Exception('format_model_output_error', 'bad compositionality type')
+
+        output_sup = pairs_dev['y'].view(-1).data.numpy()
         if len(output_sup) > 0:
-            comp_sup = comp_names[int(output_sup[0]) - 1]
+            if output_lang.index2word[output_sup[0]-config.MAX_LENGTH] == 'Comp(':
+                comp_sup = 'composition'
+            else:
+                comp_sup = 'conjunction'
         else:
             comp_sup = ''
-        p1 = int(result[1]) - 3
-        if len(output_sup) > 0:
-            p1_sup = int(output_sup[1]) - 3
-        else:
-            p1_sup = ''
 
-        p2 = int(result[2]) - 3
+        p1 = 0
+        p1_sup = pairs_dev['aux_data']['p1']
+        p2 = 0
+        p2_sup = pairs_dev['aux_data']['p2']
 
-        p2_sup = None
-        if len(output_sup) > 0:
-            p2_sup = int(output_sup[2]) - 3
-        else:
-            p2_sup = ''
+        out_pos = 1
+        split_part1_tokens = []
+        while model_out_seq[out_pos] != output_lang.word2index[','] + config.MAX_LENGTH:
+            if model_out_seq[out_pos] >= len(input_tokens):
+                raise Exception('format_model_output_error', 'illigal value - split1')
+            split_part1_tokens.append(input_tokens[model_out_seq[out_pos]])
+            out_pos+=1
 
-        question_tokens = input_tokens
+        # skip the ','
+        out_pos += 1
 
-        if comp == 'conjunction':
-            split_part1 = question_tokens[0:p1 + 1]
-            split_part2 = question_tokens[p1 + 1:]
+        split_part2_tokens = []
+        while model_out_seq[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
+            if comp == 'composition' and model_out_seq[out_pos] == output_lang.word2index['%Composition'] + config.MAX_LENGTH:
+                split_part2_tokens.append('%composition')
+            else:
+                if model_out_seq[out_pos] >= len(input_tokens):
+                    raise Exception('format_model_output_error', 'illigal value - split2')
+                split_part2_tokens.append(input_tokens[model_out_seq[out_pos]])
+            out_pos+=1
 
-            split_part1 = ' '.join(split_part1).replace(" 's", "'s")
-            split_part2 = ' '.join(split_part2).replace(" 's", "'s")
-
-            if p2 != 0 and p2 < len(question_tokens):
-                split_part2 = question_tokens[p2] + ' ' + split_part2
-
-        elif comp == 'composition':
-            split_part1 = ''
-            split_part2 = ''
-            if p2 is not None:
-                split_part1 = ' '.join(question_tokens[p1:p2 + 1]).replace(" 's", "'s")
-                split_part2 = ''
-                if p1 > 0:
-                    split_part2 += ' '.join(question_tokens[0:p1]).replace(" 's", "'s")
-                split_part2 += ' %composition '
-                if p2 + 1 < len(question_tokens):
-                    split_part2 += ' '.join(question_tokens[p2 + 1:]).replace(" 's", "'s")
-                split_part2 = split_part2.strip()
-        else:
-            split_part1 = ''
-            split_part2 = ''
+        # exactly one %composition if composition question
+        if comp == 'composition' and ((pd.Series(split_part2_tokens) == '%composition') * 1.0).sum() != 1:
+            raise Exception('format_model_output_error', 'no %composition in split2')
 
         return [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
                            'same_comp': int(comp == comp_sup), 'p1': p1, 'p1_sup': p1_sup, 'p2': p2, \
-                           'p2_sup': p2_sup, 'split_part1': split_part1, \
-                           'split_part2': split_part2,
+                           'p2_sup': p2_sup, 'split_part1': ' '.join(split_part1_tokens), \
+                           'split_part2': ' '.join(split_part2_tokens),
                            'question': pairs_dev['aux_data']['question'], \
                            'answers': pairs_dev['aux_data']['answers']}]
 

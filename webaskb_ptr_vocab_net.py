@@ -1,4 +1,4 @@
-from config import config
+from config import *
 from io import open
 import numpy as np
 import json
@@ -89,7 +89,7 @@ class WebAsKB_PtrVocabNet():
 
     def init(self):
         # define batch training scheme
-        model = WebAsKB_PtrVocabNet_Model(self.input_lang)
+        model = WebAsKB_PtrVocabNet_Model(self.input_lang, self.output_lang)
 
         # train using training scheme
         self.net = NNRun(model, self.pairs_train, self.pairs_dev)
@@ -101,6 +101,7 @@ class WebAsKB_PtrVocabNet():
         model_output = self.net.evaluate()
         with open(config.split_points_dir + config.EVALUATION_SET + '.json', 'w') as outfile:
             outfile.write(json.dumps(model_output))
+        pd.DataFrame(model_output).to_csv(config.split_points_dir + config.EVALUATION_SET + '.csv' + '.csv',encoding="utf-8",index=False)
 
 if __name__ == "__main__":
     import argparse

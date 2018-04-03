@@ -257,12 +257,10 @@ class NoisySupervision():
                 question['seq2seq_output'] = ['Conj(']
                 question['pointer_ind'] = [None]
 
-                for ind in range(0, question['p2'] + 1):
+                for ind in range(0, question['p1'] + 1):
                     # duplicate token will be registered as "dup"
                     question['seq2seq_output'].append('Copy')
                     question['pointer_ind'].append(ind)
-
-                ptr_ind_offset = ind + 1
 
                 question['seq2seq_output'].append(',')
                 question['pointer_ind'].append(None)
@@ -271,10 +269,10 @@ class NoisySupervision():
                     question['seq2seq_output'].append('Copy')
                     question['pointer_ind'].append(question['p2'])
 
-                for ind in range(question['p2'] + 1, len(question['rephrased_tokens'])):
+                for ind in range(question['p1'] + 1, len(question['rephrased_tokens'])):
                     # duplicate token will be registered as "dup"
                     question['seq2seq_output'].append('Copy')
-                    question['pointer_ind'].append(ind + ptr_ind_offset)
+                    question['pointer_ind'].append(ind)
 
                 question['seq2seq_output'].append(')')
                 question['pointer_ind'].append(None)
@@ -372,7 +370,7 @@ class NoisySupervision():
                     question['seq2seq_output'].append('Copy')
                     question['pointer_ind'].append(ind)
 
-                question['seq2seq_output'].append('%Composition')
+                question['seq2seq_output'].append('%composition')
                 question['pointer_ind'].append(None)
 
                 for ind in range(question['p2'],len(question['rephrased_tokens'])):
