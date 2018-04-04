@@ -63,20 +63,20 @@ class AttnDecoderRNN(nn.Module):
         Pgen = self.sigmoid(self.pgen_linear(torch.cat((attn_applied[0], decoder_hidden[0] , decoder_input_embedded[0]), 1)))
 
         if output_mask is not None:
-            input_dist = F.softmax(attn_weights[0] - output_mask[0:self.max_length] * 10)
-            vocab_dist = F.softmax(self.out(output[0]) - output_mask[self.max_length:] * 10)
+            input_dist = F.softmax(attn_weights[0] - output_mask[0:self.max_length])
+            vocab_dist = F.softmax(self.out(output[0]) - output_mask[self.max_length:])
         else:
             input_dist = F.softmax(attn_weights)
             vocab_dist = F.softmax(self.out(output[0]))
 
-        if output_mask is not None and output_mask[0:self.max_length].data.mean()==1:
-            softmax_output = torch.cat((Variable(torch.ones(self.max_length), requires_grad = False).view(1,-1) * -100, \
-                                        torch.log(vocab_dist)), 1)
-        elif output_mask is not None and output_mask[self.max_length:].data.mean()==1:
-            softmax_output = torch.cat((torch.log(input_dist) , \
-                                        Variable(torch.ones(self.output_size), requires_grad = False).view(1,-1) * -100), 1)
-        else:
-            softmax_output = torch.log(torch.cat(((1 - Pgen) * input_dist , Pgen * vocab_dist) , 1))
+        #if output_mask is not None and output_mask[0:self.max_length].data.mean()==1:
+        #    softmax_output = torch.cat((Variable(torch.ones(self.max_length), requires_grad = False).view(1,-1) * -100, \
+        #                                torch.log(vocab_dist)), 1)
+        #elif output_mask is not None and output_mask[self.max_length:].data.mean()==1:
+        #    softmax_output = torch.cat((torch.log(input_dist) , \
+        #                                Variable(torch.ones(self.output_size), requires_grad = False).view(1,-1) * -100), 1)
+        #else:
+        softmax_output = torch.log(torch.cat(((1 - Pgen) * input_dist , Pgen * vocab_dist) , 1))
 
         # WRONG - experimenting. ..
         #softmax_output = F.log_softmax(torch.cat(((1 - Pgen) * attn_weights, Pgen * self.out(output[0])), 1))

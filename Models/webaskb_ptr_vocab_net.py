@@ -82,6 +82,7 @@ class WebAsKB_PtrVocabNet_Model():
     def calc_output_mask(self, input_variable, result):
         output_lang = self.output_lang
         output_mask = Variable(torch.ones(config.MAX_LENGTH + output_lang.n_words), requires_grad = False)
+        output_mask *= 100
 
         # comp or cong
         if self.out_mask_state == 0:
@@ -238,13 +239,13 @@ class WebAsKB_PtrVocabNet_Model():
             decoder_output, decoder_hidden, decoder_attention = self.decoder(
                 decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
 
-            topv, topi = decoder_output.data.topk(1)
-            ni = topi[0][0]
+            #topv, topi = decoder_output.data.topk(1)
+            #ni = topi[0][0]
 
             if DO_TECHER_FORCING:
                 decoder_input = target_variable[di]
             else:
-                decoder_input = Variable(torch.LongTensor([[int(np.argmax(decoder_attention.data[0].tolist()))]]))
+                decoder_input = Variable(torch.LongTensor([[int(np.argmax(decoder_output.data[0].tolist()))]]))
 
             # we are computing logistical regression vs the hidden layer!!
             if len(target_variable)>0:

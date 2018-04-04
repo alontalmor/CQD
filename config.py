@@ -28,8 +28,8 @@ class Config:
 
         self.NUM_OF_ITER = 1000000
         self.NUM_OF_SAMPLES = None
-        self.print_every = 500
-        self.evaluate_every = 3000
+        self.print_every = 200
+        self.evaluate_every = 600
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
 
@@ -111,7 +111,7 @@ class Config:
                 'EMBEDDING_VEC_SIZE' : self.EMBEDDING_VEC_SIZE,
                 'EVALUATION_SET':self.EVALUATION_SET}
 
-            self.logger.set_repeated_context_dict(self.run_tag + '_' + self.run_start_time,repeated_context_dict)
+            self.logger.set_repeated_context_dict(self.run_tag , repeated_context_dict)
 
         self.logger.write_log(level, message, context_dict)
 
