@@ -129,6 +129,8 @@ class NNRun():
                                                       'adjusted accuracy': round(self.curr_accuracy, 4), \
                                                       'iteration': self.iteration})
         config.write_log('INFO', 'Evaluation stats', detailed_stats )
+        for key in model_format_errors:
+            model_format_errors[key] /= float(sample_size)
         config.write_log('INFO', 'Model Format Errors', model_format_errors)
 
         #print('evalset loss %.4f' % (self.test_loss/sample_size))

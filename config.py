@@ -27,7 +27,7 @@ class Config:
 
         self.NUM_OF_ITER = 1000000
         self.NUM_OF_SAMPLES = None
-        self.print_every = 1000
+        self.print_every = 200
         self.evaluate_every = 3000
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
@@ -36,11 +36,14 @@ class Config:
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
 
+        # used to limit size of dev set when training
+        self.use_output_masking = True
+
         # used for generated the actual output in run_ptrnet
-        self.gen_model_output = False
+        self.gen_model_output = True
 
         # used to limit size of dev set when training
-        self.max_evalset_size = 1000
+        self.max_evalset_size = 4000
 
         # Number of training iteration with no substantial dev accuracy improvement to stop training ("early stopping")
         self.NO_IMPROVEMENT_ITERS_TO_STOP = 50000

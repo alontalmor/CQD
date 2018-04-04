@@ -24,7 +24,7 @@ class AttnDecoderRNN(nn.Module):
         self.out = nn.Linear(self.hidden_size, self.output_size)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, decoder_input, decoder_hidden, encoder_output, encoder_hiddens, encoder_hidden):
+    def forward(self, decoder_input, decoder_hidden, encoder_output, encoder_hiddens, encoder_hidden, output_mask=None):
         # input is actually the output of the decoder from t-1
         # hidden is the decoder hidden state
 
@@ -62,7 +62,15 @@ class AttnDecoderRNN(nn.Module):
         # NOTE!! we should use decoder input not decoder_input_embedded
         Pgen = self.sigmoid(self.pgen_linear(torch.cat((attn_applied[0], decoder_hidden[0] , decoder_input_embedded[0]), 1)))
 
-        softmax_output = torch.log(torch.cat(((1 - Pgen) * F.softmax(attn_weights) , Pgen * F.softmax(self.out(output[0]))),1))
+        if output_mask is not None:
+            attention = F.softmax(attn_weights[0] * output_mask[0:self.max_length])
+            vocab = F.softmax(self.out(output[0]) * output_mask[self.max_length:])
+        else:
+            attention = F.softmax(attn_weights)
+            vocab = F.softmax(self.out(output[0]))
+
+        softmax_output = torch.log(torch.cat(((1 - Pgen) * attention , Pgen * vocab) , 1))
+
         # WRONG - experimenting. ..
         #softmax_output = F.log_softmax(torch.cat(((1 - Pgen) * attn_weights, Pgen * self.out(output[0])), 1))
 

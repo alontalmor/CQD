@@ -21,7 +21,7 @@ class WebAsKB_PtrVocabNet_Model():
             self.decoder = torch.load(config.neural_model_dir  + 'decoder.pkl')
         else:
             self.encoder = EncoderRNN(input_lang.n_words, config.hidden_size)
-            self.decoder = AttnDecoderRNN(config.output_size, config.hidden_size)
+            self.decoder = AttnDecoderRNN(output_lang.n_words, config.hidden_size)
 
         self.criterion = nn.NLLLoss()
         #self.criterion = nn.CrossEntropyLoss()
@@ -79,6 +79,39 @@ class WebAsKB_PtrVocabNet_Model():
 
         return accuracy
 
+    def calc_output_mask(self, result):
+        output_lang = self.output_lang
+        output_mask = Variable(torch.zeros(config.MAX_LENGTH + output_lang.n_words), requires_grad = False)
+
+        # comp or cong
+        if self.out_mask_state == 0:
+            if len(result)>0:
+                self.out_mask_state += 1
+            else:
+                output_mask[output_lang.word2index['Comp('] + config.MAX_LENGTH] = 1
+                output_mask[output_lang.word2index['Conj('] + config.MAX_LENGTH] = 1
+
+
+        # split1
+        if self.out_mask_state == 1:
+            if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result)>2:
+                self.out_mask_state += 1
+            else:
+                output_mask[0:config.MAX_LENGTH] = 1
+                output_mask[output_lang.word2index[','] + config.MAX_LENGTH] = 1
+        # split2
+        if self.out_mask_state == 2:
+            if result[-1] == output_lang.word2index[')'] + config.MAX_LENGTH and \
+                    result[-2] != output_lang.word2index[','] + config.MAX_LENGTH:
+                self.out_mask_state += 1
+            else:
+                output_mask[0:config.MAX_LENGTH] = 1
+                output_mask[output_lang.word2index['%composition'] + config.MAX_LENGTH] = 1
+                output_mask[output_lang.word2index[')'] + config.MAX_LENGTH] = 1
+
+        return output_mask
+
+
     def calc_detailed_stats(self, sample_size):
 
         comp_accuracy_avg = self.comp_accuracy / sample_size
@@ -124,14 +157,12 @@ class WebAsKB_PtrVocabNet_Model():
         else:
             comp_sup = ''
 
-        p1 = 0
         p1_sup = pairs_dev['aux_data']['p1']
-        p2 = 0
         p2_sup = pairs_dev['aux_data']['p2']
 
         out_pos = 1
         split_part1_tokens = []
-        while model_out_seq[out_pos] != output_lang.word2index[','] + config.MAX_LENGTH:
+        while out_pos<len(model_out_seq) and model_out_seq[out_pos] != output_lang.word2index[','] + config.MAX_LENGTH:
             if model_out_seq[out_pos] >= len(input_tokens):
                 raise Exception('format_model_output_error', 'illigal value - split1')
             split_part1_tokens.append(input_tokens[model_out_seq[out_pos]])
@@ -141,8 +172,8 @@ class WebAsKB_PtrVocabNet_Model():
         out_pos += 1
 
         split_part2_tokens = []
-        while model_out_seq[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
-            if comp == 'composition' and model_out_seq[out_pos] == output_lang.word2index['%Composition'] + config.MAX_LENGTH:
+        while out_pos<len(model_out_seq) and model_out_seq[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
+            if comp == 'composition' and model_out_seq[out_pos] == output_lang.word2index['%composition'] + config.MAX_LENGTH:
                 split_part2_tokens.append('%composition')
             else:
                 if model_out_seq[out_pos] >= len(input_tokens):
@@ -150,12 +181,18 @@ class WebAsKB_PtrVocabNet_Model():
                 split_part2_tokens.append(input_tokens[model_out_seq[out_pos]])
             out_pos+=1
 
+        if len(split_part1_tokens) == 0:
+            raise Exception('format_model_output_error', 'split1 len 0')
+
+        if len(split_part2_tokens) == 0:
+            raise Exception('format_model_output_error', 'split2 len 0')
+
         # exactly one %composition if composition question
         if comp == 'composition' and ((pd.Series(split_part2_tokens) == '%composition') * 1.0).sum() != 1:
             raise Exception('format_model_output_error', 'no %composition in split2')
 
         return [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
-                           'same_comp': int(comp == comp_sup), 'p1': p1, 'p1_sup': p1_sup, 'p2': p2, \
+                           'same_comp': int(comp == comp_sup), 'p1_sup': p1_sup, \
                            'p2_sup': p2_sup, 'split_part1': ' '.join(split_part1_tokens), \
                            'split_part2': ' '.join(split_part2_tokens),
                            'question': pairs_dev['aux_data']['question'], \
@@ -189,9 +226,16 @@ class WebAsKB_PtrVocabNet_Model():
         result = []
         # Without teacher forcing: use its own predictions as the next input
         sub_optimal_chosen = False
+        output_mask = None
+        self.out_mask_state = 0
+
         for di in range(len(target_variable)):
+            if config.use_output_masking:
+                output_mask = self.calc_output_mask(result)
+
             decoder_output, decoder_hidden, decoder_attention = self.decoder(
-                decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden)
+                decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
+
             topv, topi = decoder_output.data.topk(1)
             ni = topi[0][0]
 
