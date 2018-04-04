@@ -79,17 +79,17 @@ class WebAsKB_PtrVocabNet_Model():
 
         return accuracy
 
-    def calc_output_mask(self, result):
+    def calc_output_mask(self, input_variable, result):
         output_lang = self.output_lang
-        output_mask = Variable(torch.zeros(config.MAX_LENGTH + output_lang.n_words), requires_grad = False)
+        output_mask = Variable(torch.ones(config.MAX_LENGTH + output_lang.n_words), requires_grad = False)
 
         # comp or cong
         if self.out_mask_state == 0:
             if len(result)>0:
                 self.out_mask_state += 1
             else:
-                output_mask[output_lang.word2index['Comp('] + config.MAX_LENGTH] = 1
-                output_mask[output_lang.word2index['Conj('] + config.MAX_LENGTH] = 1
+                output_mask[output_lang.word2index['Comp('] + config.MAX_LENGTH] = 0
+                output_mask[output_lang.word2index['Conj('] + config.MAX_LENGTH] = 0
 
 
         # split1
@@ -97,17 +97,19 @@ class WebAsKB_PtrVocabNet_Model():
             if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result)>2:
                 self.out_mask_state += 1
             else:
-                output_mask[0:config.MAX_LENGTH] = 1
-                output_mask[output_lang.word2index[','] + config.MAX_LENGTH] = 1
+                output_mask[0:len(input_variable)-1] = 0
+                output_mask[output_lang.word2index[','] + config.MAX_LENGTH] = 0
         # split2
         if self.out_mask_state == 2:
-            if result[-1] == output_lang.word2index[')'] + config.MAX_LENGTH and \
-                    result[-2] != output_lang.word2index[','] + config.MAX_LENGTH:
-                self.out_mask_state += 1
-            else:
-                output_mask[0:config.MAX_LENGTH] = 1
-                output_mask[output_lang.word2index['%composition'] + config.MAX_LENGTH] = 1
-                output_mask[output_lang.word2index[')'] + config.MAX_LENGTH] = 1
+            #if result[-1] == output_lang.word2index[')'] + config.MAX_LENGTH and \
+            #        result[-2] != output_lang.word2index[','] + config.MAX_LENGTH:
+            #    self.out_mask_state += 1
+            #else:
+            output_mask[0:len(input_variable)-1] = 0
+            output_mask[output_lang.word2index['%composition'] + config.MAX_LENGTH] = 0
+            output_mask[output_lang.word2index[')'] + config.MAX_LENGTH] = 0
+
+        self.output_mask = output_mask
 
         return output_mask
 
@@ -231,7 +233,7 @@ class WebAsKB_PtrVocabNet_Model():
 
         for di in range(len(target_variable)):
             if config.use_output_masking:
-                output_mask = self.calc_output_mask(result)
+                output_mask = self.calc_output_mask(input_variable,result)
 
             decoder_output, decoder_hidden, decoder_attention = self.decoder(
                 decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)

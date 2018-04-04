@@ -2,6 +2,7 @@
 import time
 import os
 import pandas as pd
+import numpy as np
 import json
 import unicodedata
 import traceback
@@ -27,17 +28,17 @@ class Config:
 
         self.NUM_OF_ITER = 1000000
         self.NUM_OF_SAMPLES = None
-        self.print_every = 200
+        self.print_every = 500
         self.evaluate_every = 3000
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
 
-        self.use_teacher_forcing = True
+        self.use_teacher_forcing = False
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
 
         # used to limit size of dev set when training
-        self.use_output_masking = True
+        self.use_output_masking = False
 
         # used for generated the actual output in run_ptrnet
         self.gen_model_output = True
