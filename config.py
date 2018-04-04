@@ -28,8 +28,8 @@ class Config:
 
         self.NUM_OF_ITER = 1000000
         self.NUM_OF_SAMPLES = None
-        self.print_every = 200
-        self.evaluate_every = 600
+        self.print_every = 500
+        self.evaluate_every = 3000
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
 
