@@ -55,7 +55,10 @@ class WebAsKB_PtrVocabNet_Model():
         #if config.use_cuda:
         #    delta = [abs(target_variable.cpu().view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
         #else:
-        #    delta = [abs(target_variable.view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
+        delta_seq = [abs(target_variable.view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
+        abs_delta_seq_array = np.abs(np.array(delta_seq))
+        exact_matchseq = (np.mean((abs_delta_seq_array == 0) * 1.0) == 1.0) * 1.0
+
         delta = []
         delta.append(abs(target_variable.view(-1).data.numpy()[0] - result[0]))
         delta.append(abs(self.mask_state['P1'] - aux_data['p1']))
@@ -205,11 +208,12 @@ class WebAsKB_PtrVocabNet_Model():
                     # conjucntion "P2"
                     if self.vocab_ind_to_word(result[-1]) == ',':
                         # all previous split tokens OR first token unused
-                        output_mask[0 : self.mask_state['P1'] + 2] = 0
+                        output_mask[1 : self.mask_state['P1'] + 2] = 0
                     else:
                         # P2 used:
                         if result[-1] <= self.mask_state['P1']:
                             output_mask[self.mask_state['P1'] + 1] = 0
+                            self.mask_state['P2'] = result[-1]
                         else:
                             if result[-1] >= len(input_variable) - 2:
                                 output_mask[self.vocab_word_to_ind(')')] = 0
@@ -221,7 +225,6 @@ class WebAsKB_PtrVocabNet_Model():
         self.output_mask = output_mask
 
         return output_mask
-
 
     def calc_detailed_stats(self, sample_size):
 
@@ -318,7 +321,9 @@ class WebAsKB_PtrVocabNet_Model():
 
     def save_model(self):
         torch.save(self.encoder, config.neural_model_dir + 'encoder.pkl')
+        config.store_file(config.neural_model_dir + 'encoder.pkl', config.neural_model_dir + 'encoder.pkl')
         torch.save(self.decoder, config.neural_model_dir + 'decoder.pkl')
+        config.store_file(config.neural_model_dir + 'decoder.pkl', config.neural_model_dir + 'decoder.pkl')
 
     def forward(self,input_variable, target_variable, loss=0, DO_TECHER_FORCING=False):
         encoder_hidden = self.encoder.initHidden()

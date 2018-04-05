@@ -7,6 +7,8 @@ import json
 import unicodedata
 import traceback
 from common.elastic_logger import ElasticLogger
+import dropbox
+import torch
 
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
@@ -40,6 +42,9 @@ class Config:
         # used to limit size of dev set when training
         self.use_output_masking = True
 
+        # manual seeding for run comparison
+        torch.manual_seed(0)
+
         # used for generated the actual output in run_ptrnet
         self.gen_model_output = True
 
@@ -48,6 +53,8 @@ class Config:
 
         # Number of training iteration with no substantial dev accuracy improvement to stop training ("early stopping")
         self.NO_IMPROVEMENT_ITERS_TO_STOP = 50000
+
+
 
         self.SOS_token = 0
         self.EOS_token = 1
@@ -78,6 +85,7 @@ class Config:
         self.rc_answer_cache_dir = self.data_dir + "rc_answer_cache/"
 
         self.logger = None
+        self.dbx = None
 
         self.run_start_time = time.strftime("%m-%d_%H-%M-%S")
 
@@ -114,6 +122,16 @@ class Config:
             self.logger.set_repeated_context_dict(self.run_tag , repeated_context_dict)
 
         self.logger.write_log(level, message, context_dict)
+
+    def store_file(self,file,tar_path):
+        if self.dbx is None:
+            self.dbx = dropbox.Dropbox('7j6m2s1jYC0AAAAAAAHy69fu0OxDAU3fPbIjjarqr_1zalj8Mvypf8U71BoLT-AD')
+        if type(file) == str:
+            with open(file, "rb") as f:
+                self.dbx.files_upload(f.read(), '/' + tar_path, mode = dropbox.files.WriteMode.overwrite)
+        else:
+            pass
+
 
 
 config = Config()
