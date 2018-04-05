@@ -38,7 +38,7 @@ class Config:
         self.teacher_forcing_partial_until = 30000
 
         # used to limit size of dev set when training
-        self.use_output_masking = False
+        self.use_output_masking = True
 
         # used for generated the actual output in run_ptrnet
         self.gen_model_output = True
