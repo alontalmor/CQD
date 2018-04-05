@@ -121,11 +121,16 @@ class WebAsKB_PtrVocabNet_Model():
                     self.mask_state['comp'] = 'Composition'
                     output_mask[0:len(input_variable) - 1] = 0
                 else:
-                    if self.vocab_ind_to_word(result[-2]) == 'Comp(':
-                        self.mask_state['P1'] = result[-1]
+                    if self.mask_state['comp'] == 'Composition':
+                        if self.vocab_ind_to_word(result[-2]) == 'Comp(':
+                            self.mask_state['P1'] = result[-1]
+                        if result[-1] < len(input_variable) - 1:
+                            output_mask[result[-1] + 1] = 0
+                    else:
+                        # we need at least one word in split2
+                        if result[-1] < len(input_variable) - 3:
+                            output_mask[result[-1] + 1] = 0
 
-                    if result[-1] < len(input_variable) - 2:
-                        output_mask[result[-1] + 1] = 0
                     output_mask[self.vocab_word_to_ind(',')] = 0
 
         # split2
