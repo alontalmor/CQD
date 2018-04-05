@@ -8,7 +8,7 @@ from torch import optim
 import torch.nn.functional as F
 from Models.Pytorch.encoder import EncoderRNN
 from Models.Pytorch.abisee17_ptr_vocab_decoder import AttnDecoderRNN
-from config import config
+from config import *
 
 class WebAsKB_PtrVocabNet_Model():
     def __init__(self , input_lang, output_lang):
@@ -93,87 +93,90 @@ class WebAsKB_PtrVocabNet_Model():
         output_mask = Variable(torch.ones(config.MAX_LENGTH + output_lang.n_words), requires_grad = False)
         output_mask *= 1000
 
-        # comp or cong
-        if self.out_mask_state == 0:
-            if len(result)>0:
-                self.out_mask_state += 1
-            else:
-                self.mask_state = {}
-                output_mask[self.vocab_word_to_ind('Comp(')] = 0
-                output_mask[self.vocab_word_to_ind('Conj(')] = 0
-
-        # split1
-        if self.out_mask_state == 1:
-            if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result)>2:
-                self.out_mask_state += 1
-                if self.mask_state['comp'] == 'Conjunction':
-                    self.mask_state['P1'] = result[-2]
+        try:
+            # comp or cong
+            if self.out_mask_state == 0:
+                if len(result)>0:
+                    self.out_mask_state += 1
                 else:
-                    self.mask_state['P2'] = result[-2]
+                    self.mask_state = {}
+                    output_mask[self.vocab_word_to_ind('Comp(')] = 0
+                    output_mask[self.vocab_word_to_ind('Conj(')] = 0
 
-            else:
-                # Model chose Conjunction
-                if self.vocab_ind_to_word(result[-1]) == 'Conj(':
-                    self.mask_state['comp'] = 'Conjunction'
-                    output_mask[0] = 0
-                # Model chose Composition
-                elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
-                    self.mask_state['comp'] = 'Composition'
-                    output_mask[0:len(input_variable) - 1] = 0
-                else:
-                    if self.mask_state['comp'] == 'Composition':
-                        if self.vocab_ind_to_word(result[-2]) == 'Comp(':
-                            self.mask_state['P1'] = result[-1]
-                        if result[-1] < len(input_variable) - 2:
-                            output_mask[result[-1] + 1] = 0
+            # split1
+            if self.out_mask_state == 1:
+                if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result)>2:
+                    self.out_mask_state += 1
+                    if self.mask_state['comp'] == 'Conjunction':
+                        self.mask_state['P1'] = result[-2]
                     else:
-                        # we need at least one word in split2
-                        if result[-1] < len(input_variable) - 3:
-                            output_mask[result[-1] + 1] = 0
+                        self.mask_state['P2'] = result[-2]
 
-                    output_mask[self.vocab_word_to_ind(',')] = 0
-
-        # split2
-        if self.out_mask_state == 2:
-            ## !!! output len is fixed for now
-            #if result[-1] == output_lang.word2index[')'] + config.MAX_LENGTH and \
-            #        result[-2] != output_lang.word2index[','] + config.MAX_LENGTH:
-            #    self.out_mask_state += 1
-            #else:
-            if self.mask_state['comp'] == 'Composition':
-                if self.vocab_ind_to_word(result[-1]) == ',':
-                    if self.mask_state['P1']>0:
+                else:
+                    # Model chose Conjunction
+                    if self.vocab_ind_to_word(result[-1]) == 'Conj(':
+                        self.mask_state['comp'] = 'Conjunction'
                         output_mask[0] = 0
+                    # Model chose Composition
+                    elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
+                        self.mask_state['comp'] = 'Composition'
+                        output_mask[0:len(input_variable) - 1] = 0
                     else:
-                        output_mask[self.vocab_word_to_ind('%composition')] = 0
-                elif self.vocab_ind_to_word(result[-1]) == '%composition':
-                    if self.mask_state['P2'] >= len(input_variable) - 2:
-                        output_mask[self.vocab_word_to_ind(')')] = 0
-                    else:
-                        output_mask[self.mask_state['P2']+1] = 0
-                else:
-                    if result[-1] == self.mask_state['P1'] - 1:
-                        output_mask[self.vocab_word_to_ind('%composition')] = 0
-                    else:
-                        if result[-1] == len(input_variable) - 2:
-                            output_mask[self.vocab_word_to_ind(')')] = 0
+                        if self.mask_state['comp'] == 'Composition':
+                            if self.vocab_ind_to_word(result[-2]) == 'Comp(':
+                                self.mask_state['P1'] = result[-1]
+                            if result[-1] < len(input_variable) - 2:
+                                output_mask[result[-1] + 1] = 0
                         else:
-                            output_mask[result[-1] + 1] = 0
+                            # we need at least one word in split2
+                            if result[-1] < len(input_variable) - 3:
+                                output_mask[result[-1] + 1] = 0
 
-            else:
-                # conjucntion "P2"
-                if self.vocab_ind_to_word(result[-1]) == ',':
-                    # all previous split tokens OR first token unused
-                    output_mask[0 : self.mask_state['P1'] + 2] = 0
-                else:
-                    # P2 used:
-                    if result[-1] <= self.mask_state['P1']:
-                        output_mask[self.mask_state['P1'] + 1] = 0
-                    else:
-                        if result[-1] == len(input_variable) - 2:
+                        output_mask[self.vocab_word_to_ind(',')] = 0
+
+            # split2
+            if self.out_mask_state == 2:
+                ## !!! output len is fixed for now
+                #if result[-1] == output_lang.word2index[')'] + config.MAX_LENGTH and \
+                #        result[-2] != output_lang.word2index[','] + config.MAX_LENGTH:
+                #    self.out_mask_state += 1
+                #else:
+                if self.mask_state['comp'] == 'Composition':
+                    if self.vocab_ind_to_word(result[-1]) == ',':
+                        if self.mask_state['P1']>0:
+                            output_mask[0] = 0
+                        else:
+                            output_mask[self.vocab_word_to_ind('%composition')] = 0
+                    elif self.vocab_ind_to_word(result[-1]) == '%composition':
+                        if self.mask_state['P2'] >= len(input_variable) - 2:
                             output_mask[self.vocab_word_to_ind(')')] = 0
                         else:
-                            output_mask[result[-1] + 1] = 0
+                            output_mask[self.mask_state['P2']+1] = 0
+                    else:
+                        if result[-1] == self.mask_state['P1'] - 1:
+                            output_mask[self.vocab_word_to_ind('%composition')] = 0
+                        else:
+                            if result[-1] >= len(input_variable) - 2:
+                                output_mask[self.vocab_word_to_ind(')')] = 0
+                            else:
+                                output_mask[result[-1] + 1] = 0
+
+                else:
+                    # conjucntion "P2"
+                    if self.vocab_ind_to_word(result[-1]) == ',':
+                        # all previous split tokens OR first token unused
+                        output_mask[0 : self.mask_state['P1'] + 2] = 0
+                    else:
+                        # P2 used:
+                        if result[-1] <= self.mask_state['P1']:
+                            output_mask[self.mask_state['P1'] + 1] = 0
+                        else:
+                            if result[-1] >= len(input_variable) - 2:
+                                output_mask[self.vocab_word_to_ind(')')] = 0
+                            else:
+                                output_mask[result[-1] + 1] = 0
+        except:
+            config.write_log('ERROR',"build mask exception", {'error_message': traceback.format_exc()})
 
         self.output_mask = output_mask
 
