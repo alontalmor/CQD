@@ -127,6 +127,7 @@ class NNRun():
         detailed_stats = self.model.calc_detailed_stats(sample_size)
         detailed_stats.update({'evalset loss': round(self.test_loss / sample_size, 4), \
                                                       'adjusted accuracy': round(self.curr_accuracy, 4), \
+                                                      'best_adjusted accuracy': round(self.best_accuracy, 4), \
                                                       'iteration': self.iteration})
         config.write_log('INFO', 'Evaluation stats', detailed_stats )
         for key in model_format_errors:

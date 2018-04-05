@@ -239,9 +239,6 @@ class WebAsKB_PtrVocabNet_Model():
             decoder_output, decoder_hidden, decoder_attention = self.decoder(
                 decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
 
-            #topv, topi = decoder_output.data.topk(1)
-            #ni = topi[0][0]
-
             if DO_TECHER_FORCING:
                 decoder_input = target_variable[di]
             else:
