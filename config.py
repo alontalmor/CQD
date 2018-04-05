@@ -33,7 +33,7 @@ class Config:
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
 
-        self.use_teacher_forcing = False
+        self.use_teacher_forcing = True
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
 
