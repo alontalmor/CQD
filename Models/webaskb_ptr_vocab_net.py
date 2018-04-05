@@ -52,20 +52,42 @@ class WebAsKB_PtrVocabNet_Model():
 
     def evaluate_accuracy(self, target_variable, result, aux_data):
         accuracy = 0
-        if config.use_cuda:
-            delta = [abs(target_variable.cpu().view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
+        #if config.use_cuda:
+        #    delta = [abs(target_variable.cpu().view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
+        #else:
+        #    delta = [abs(target_variable.view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
+        delta = []
+        delta.append(abs(target_variable.view(-1).data.numpy()[0] - result[0]))
+        delta.append(abs(self.mask_state['P1'] - aux_data['p1']))
+        if 'P2' in self.mask_state:
+            delta.append(abs(self.mask_state['P2'] - aux_data['p2']))
         else:
-            delta = [abs(target_variable.view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
+            if aux_data['p2'] == 0:
+                delta.append(0.0)
+            else:
+                delta.append(100.0)
 
         if delta[0] == 0:
             accuracy += 0.4
-
-        accuracy += ((pd.Series(delta[1:]) == 0) * 1.0).mean() * 0.6
-        accuracy += ((pd.Series(delta[1:]) == 1) * 1.0).mean() * 0.3
-        accuracy += ((pd.Series(delta[1:]) == 2) * 1.0).mean() * 0.1
+        if len(delta) > 1:
+            if delta[1] == 0:
+                accuracy += 0.3
+            if delta[1] == 1:
+                accuracy += 0.15
+            if delta[1] == 2:
+                accuracy += 0.05
+            if delta[2] == 0:
+                accuracy += 0.3
+            if delta[2] == 1:
+                accuracy += 0.15
+            if delta[2] == 2:
+                accuracy += 0.05
 
         abs_delta_array = np.abs(np.array(delta))
+        self.avg_exact_token_match += np.mean((abs_delta_array == 0) * 1.0)
+        self.avg_one_tol_token_match += ((abs_delta_array[0] == 0) * 1.0 + np.sum((abs_delta_array[1:] <= 1) * 1.0)) / 3.0
         self.exact_match += (np.mean((abs_delta_array == 0) * 1.0) == 1.0) * 1.0
+        self.exact_match_one_tol += ((abs_delta_array[0] == 0) & (np.mean((abs_delta_array <= 1) * 1.0) == 1.0)) * 1.0
 
         if config.use_cuda:
             target = target_variable.cpu().view(-1).data.numpy()
@@ -74,6 +96,24 @@ class WebAsKB_PtrVocabNet_Model():
 
         if target[0] == result[0]:
             self.comp_accuracy += 1
+        if len(delta) > 1:
+            if target[1] == result[1]:
+                self.p1_accuracy += 1
+            if target[1] == result[1] - 1:
+                self.p1_1_right_accuracy += 1
+            if target[1] == result[1] + 1:
+                self.p1_1_left_accuracy += 1
+            if target[2] == result[2]:
+                self.p2_accuracy += 1
+
+        #accuracy += ((pd.Series(delta[1:]) == 0) * 1.0).mean() * 0.6
+        #accuracy += ((pd.Series(delta[1:]) == 1) * 1.0).mean() * 0.3
+        #accuracy += ((pd.Series(delta[1:]) == 2) * 1.0).mean() * 0.1
+
+        #abs_delta_array = np.abs(np.array(delta))
+        #self.exact_match += (np.mean((abs_delta_array == 0) * 1.0) == 1.0) * 1.0
+
+
 
 
 
@@ -110,7 +150,7 @@ class WebAsKB_PtrVocabNet_Model():
                     if self.mask_state['comp'] == 'Conjunction':
                         self.mask_state['P1'] = result[-2]
                     else:
-                        self.mask_state['P2'] = result[-2]
+                        self.mask_state['P2'] = result[-2] + 1
 
                 else:
                     # Model chose Conjunction
@@ -148,10 +188,10 @@ class WebAsKB_PtrVocabNet_Model():
                         else:
                             output_mask[self.vocab_word_to_ind('%composition')] = 0
                     elif self.vocab_ind_to_word(result[-1]) == '%composition':
-                        if self.mask_state['P2'] >= len(input_variable) - 2:
+                        if self.mask_state['P2'] >= len(input_variable) - 1:
                             output_mask[self.vocab_word_to_ind(')')] = 0
                         else:
-                            output_mask[self.mask_state['P2']+1] = 0
+                            output_mask[self.mask_state['P2']] = 0
                     else:
                         if result[-1] == self.mask_state['P1'] - 1:
                             output_mask[self.vocab_word_to_ind('%composition')] = 0
@@ -192,7 +232,14 @@ class WebAsKB_PtrVocabNet_Model():
         p1_1_left_accuracy_avg = self.p1_1_left_accuracy / sample_size
 
         return {'exact_match':self.exact_match / sample_size, \
-                    'comp_accuracy':comp_accuracy_avg}
+                    'comp_accuracy':comp_accuracy_avg , \
+                'avg_exact_token_match': self.avg_exact_token_match / sample_size, \
+                'avg_one_tol_token_match': self.avg_one_tol_token_match / sample_size, \
+                'exact_match_one_tol': self.exact_match_one_tol / sample_size, \
+                'p1_accuracy': p1_accuracy_avg, \
+                'p2_accuracy:': p2_accuracy_avg, \
+                'p1_1_right_accuracy': p1_1_right_accuracy_avg, \
+                'p1_1_left_accuracy': p1_1_left_accuracy_avg}
 
         #print('avg_exact_token_match %.4f' % (self.avg_exact_token_match / sample_size))
         #print('exact_match %.4f' % (self.exact_match / sample_size))
