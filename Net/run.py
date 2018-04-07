@@ -52,7 +52,8 @@ class NNRun():
             else:
                 teacher_forcing = False
 
-            train_loss, output_seq, loss = self.model.forward(input_variable, target_variable, loss,
+            train_loss, output_seq, loss , output_dists, output_masks = \
+                    self.model.forward(input_variable, target_variable, loss,
                                                     DO_TECHER_FORCING=teacher_forcing)
 
             # computing gradients
