@@ -146,7 +146,7 @@ class WebAsKB_PtrVocabNet_Model():
                     output_mask[self.vocab_word_to_ind('Comp(')] = 0
                     output_mask[self.vocab_word_to_ind('Conj(')] = 0
 
-            # split1
+            ##### Split1 #######
             if self.out_mask_state == 1:
                 if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result)>2:
                     self.out_mask_state += 1
@@ -154,36 +154,35 @@ class WebAsKB_PtrVocabNet_Model():
                         self.mask_state['P1'] = result[-2]
                     else:
                         self.mask_state['P2'] = result[-2] + 1
-
                 else:
-                    # Model chose Conjunction
+                    #### Model chose Conjunction
                     if self.vocab_ind_to_word(result[-1]) == 'Conj(':
                         self.mask_state['comp'] = 'Conjunction'
                         output_mask[0] = 0
-                    # Model chose Composition
+                    ### Model chose Composition
                     elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
                         self.mask_state['comp'] = 'Composition'
                         output_mask[0:len(input_variable) - 1] = 0
+                    ### Split1, pos > 2
                     else:
+
                         if self.mask_state['comp'] == 'Composition':
+                            # Storing P1 value
                             if self.vocab_ind_to_word(result[-2]) == 'Comp(':
                                 self.mask_state['P1'] = result[-1]
+                            # Only subsequent tokens allowed
                             if result[-1] < len(input_variable) - 2:
                                 output_mask[result[-1] + 1] = 0
                         else:
-                            # we need at least one word in split2
+                            # we need at least one word in split2, so break before len-1
                             if result[-1] < len(input_variable) - 3:
                                 output_mask[result[-1] + 1] = 0
 
                         output_mask[self.vocab_word_to_ind(',')] = 0
 
-            # split2
+            ##### Split2 #######
             if self.out_mask_state == 2:
-                ## !!! output len is fixed for now
-                #if result[-1] == output_lang.word2index[')'] + config.MAX_LENGTH and \
-                #        result[-2] != output_lang.word2index[','] + config.MAX_LENGTH:
-                #    self.out_mask_state += 1
-                #else:
+                ########### Composition ##############
                 if self.mask_state['comp'] == 'Composition':
                     if self.vocab_ind_to_word(result[-1]) == ',':
                         if self.mask_state['P1']>0:
@@ -203,7 +202,7 @@ class WebAsKB_PtrVocabNet_Model():
                                 output_mask[self.vocab_word_to_ind(')')] = 0
                             else:
                                 output_mask[result[-1] + 1] = 0
-
+                ########### Conjunection ##############
                 else:
                     # conjucntion "P2"
                     if self.vocab_ind_to_word(result[-1]) == ',':

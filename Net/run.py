@@ -18,6 +18,7 @@ class NNRun():
         self.pairs_dev = pairs_dev
         self.model = model
         self.iteration = 0
+        self.best_accuracy = 0
         model.init_optimizers()
 
     def run_training(self):
@@ -60,18 +61,18 @@ class NNRun():
 
                 loss.backward()
 
-                # OPTIMIZER STEP HERE
                 self.model.optimizer_step()
 
                 loss = 0
 
+            ### PRINT TRAINING STATS ##
             if self.iteration % config.print_every == 0:
                 print('--- iteration ' + str(self.iteration) +  ' run-time ' + str(datetime.datetime.now() - self.start) +  ' --------')
                 config.write_log('INFO', 'Train stats', {'trainset loss': round(self.train_loss / config.print_every, 4) , \
                                                          'iteration':self.iteration})
-                #print('trainset loss %.4f' % (self.train_loss / config.print_every))
                 self.train_loss = 0
 
+            ## EVALUATE MODEL ##
             if self.iteration % config.evaluate_every == 0:
                 print('-- Evaluating on devset --- ')
                 print('prev max adjusted accuracy %.4f' % (self.best_accuracy))
@@ -94,7 +95,6 @@ class NNRun():
         for test_iter in range(0, sample_size):
             if test_iter % 200 == 0:
                 print(test_iter)
-
             testing_pair = pairs_dev[test_iter]
 
             test_loss , result, loss  = self.model.forward(testing_pair['x'], testing_pair['y'])
@@ -122,8 +122,8 @@ class NNRun():
 
             accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], result, testing_pair['aux_data'])
 
+        ##### LOG STATS #########
         self.curr_accuracy = accuracy_avg / sample_size
-
         detailed_stats = self.model.calc_detailed_stats(sample_size)
         detailed_stats.update({'evalset loss': round(self.test_loss / sample_size, 4), \
                                                       'adjusted accuracy': round(self.curr_accuracy, 4), \
@@ -133,9 +133,6 @@ class NNRun():
         for key in model_format_errors:
             model_format_errors[key] /= float(sample_size)
         config.write_log('INFO', 'Model Format Errors', model_format_errors)
-
-        #print('evalset loss %.4f' % (self.test_loss/sample_size))
-        #print('adjusted accuracy %.4f' % (self.curr_accuracy))
 
         if gen_model_output and config.gen_model_output:
             return model_output

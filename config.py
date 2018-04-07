@@ -30,7 +30,7 @@ class Config:
 
         self.NUM_OF_ITER = 1000000
         self.NUM_OF_SAMPLES = None
-        self.print_every = 500
+        self.print_every = 1000
         self.evaluate_every = 3000
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
@@ -49,7 +49,7 @@ class Config:
         self.gen_model_output = True
 
         # used to limit size of dev set when training
-        self.max_evalset_size = 4000
+        self.max_evalset_size = 40000
 
         # Number of training iteration with no substantial dev accuracy improvement to stop training ("early stopping")
         self.NO_IMPROVEMENT_ITERS_TO_STOP = 50000
@@ -98,10 +98,11 @@ class Config:
 
         # training requires a new output dir for each training session
         if operation == 'train_model':
-            self.neural_model_dir += run_tag + "_" + str(self.LR) + '_' + str(self.ADA_GRAD_L2) + \
-                                     '_' + str(self.hidden_size) + \
-                                     '_' + str(self.dropout_p) + \
-                                     '_' + self.run_start_time + '/'
+            self.neural_model_dir += run_tag + '/'
+                                     #+ "_" + str(self.LR) + '_' + str(self.ADA_GRAD_L2) + \
+                                     #'_' + str(self.hidden_size) + \
+                                     #'_' + str(self.dropout_p) + \
+                                     #'_' + self.run_start_time + '/'
 
             if not os.path.isdir(self.neural_model_dir):
                 os.mkdir(self.neural_model_dir)
@@ -123,15 +124,18 @@ class Config:
 
         self.logger.write_log(level, message, context_dict)
 
-    def store_file(self,file,tar_path):
+    def store_file(self,data,tar_path):
         if self.dbx is None:
             self.dbx = dropbox.Dropbox('7j6m2s1jYC0AAAAAAAHy69fu0OxDAU3fPbIjjarqr_1zalj8Mvypf8U71BoLT-AD')
-        if type(file) == str:
-            with open(file, "rb") as f:
-                self.dbx.files_upload(f.read(), '/' + tar_path, mode = dropbox.files.WriteMode.overwrite)
-        else:
-            pass
-
+        try:
+            # data may be a file path (which torch.save is used)
+            if type(data) == str:
+                with open(data, "rb") as f:
+                    self.dbx.files_upload(f.read(), '/' + tar_path, mode = dropbox.files.WriteMode.overwrite)
+            else:
+                self.dbx.files_upload(data, '/' + tar_path, mode=dropbox.files.WriteMode.overwrite)
+        except:
+            config.write_log('ERROR', "save to dropbox failed", {'error_message': traceback.format_exc()})
 
 
 config = Config()

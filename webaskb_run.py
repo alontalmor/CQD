@@ -30,7 +30,7 @@ elif args.operation == 'run_model':
 elif args.operation == 'train_model':
     config.PERFORM_TRAINING = True
     config.LOAD_SAVED_MODEL = False
-    config.max_evalset_size = 1000
+    config.max_evalset_size = 2000
     ptrnet = WebAsKB_PtrVocabNet()
     ptrnet.load_data()
     ptrnet.init()
