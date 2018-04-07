@@ -1,7 +1,3 @@
-
-import pandas as pd
-import numpy as np
-import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch import optim
@@ -62,7 +58,7 @@ class WebAsKB_PtrVocabNet_Model():
         delta = []
         delta.append(abs(target_variable.view(-1).data.numpy()[0] - result[0]))
         delta.append(abs(self.mask_state['P1'] - aux_data['p1']))
-        if 'P2' in self.mask_state:
+        if self.mask_state['P2'] is not None:
             delta.append(abs(self.mask_state['P2'] - aux_data['p2']))
         else:
             if aux_data['p2'] == 0:
@@ -131,100 +127,6 @@ class WebAsKB_PtrVocabNet_Model():
     def vocab_word_to_ind(self,word):
         return self.output_lang.word2index[word] + config.MAX_LENGTH
 
-    def calc_output_mask(self, input_variable, result):
-        output_lang = self.output_lang
-        output_mask = Variable(torch.ones(config.MAX_LENGTH + output_lang.n_words), requires_grad = False)
-        output_mask *= 1000
-
-        try:
-            # comp or cong
-            if self.out_mask_state == 0:
-                if len(result)>0:
-                    self.out_mask_state += 1
-                else:
-                    self.mask_state = {}
-                    output_mask[self.vocab_word_to_ind('Comp(')] = 0
-                    output_mask[self.vocab_word_to_ind('Conj(')] = 0
-
-            ##### Split1 #######
-            if self.out_mask_state == 1:
-                if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result)>2:
-                    self.out_mask_state += 1
-                    if self.mask_state['comp'] == 'Conjunction':
-                        self.mask_state['P1'] = result[-2]
-                    else:
-                        self.mask_state['P2'] = result[-2] + 1
-                else:
-                    #### Model chose Conjunction
-                    if self.vocab_ind_to_word(result[-1]) == 'Conj(':
-                        self.mask_state['comp'] = 'Conjunction'
-                        output_mask[0] = 0
-                    ### Model chose Composition
-                    elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
-                        self.mask_state['comp'] = 'Composition'
-                        output_mask[0:len(input_variable) - 1] = 0
-                    ### Split1, pos > 2
-                    else:
-
-                        if self.mask_state['comp'] == 'Composition':
-                            # Storing P1 value
-                            if self.vocab_ind_to_word(result[-2]) == 'Comp(':
-                                self.mask_state['P1'] = result[-1]
-                            # Only subsequent tokens allowed
-                            if result[-1] < len(input_variable) - 2:
-                                output_mask[result[-1] + 1] = 0
-                        else:
-                            # we need at least one word in split2, so break before len-1
-                            if result[-1] < len(input_variable) - 3:
-                                output_mask[result[-1] + 1] = 0
-
-                        output_mask[self.vocab_word_to_ind(',')] = 0
-
-            ##### Split2 #######
-            if self.out_mask_state == 2:
-                ########### Composition ##############
-                if self.mask_state['comp'] == 'Composition':
-                    if self.vocab_ind_to_word(result[-1]) == ',':
-                        if self.mask_state['P1']>0:
-                            output_mask[0] = 0
-                        else:
-                            output_mask[self.vocab_word_to_ind('%composition')] = 0
-                    elif self.vocab_ind_to_word(result[-1]) == '%composition':
-                        if self.mask_state['P2'] >= len(input_variable) - 1:
-                            output_mask[self.vocab_word_to_ind(')')] = 0
-                        else:
-                            output_mask[self.mask_state['P2']] = 0
-                    else:
-                        if result[-1] == self.mask_state['P1'] - 1:
-                            output_mask[self.vocab_word_to_ind('%composition')] = 0
-                        else:
-                            if result[-1] >= len(input_variable) - 2:
-                                output_mask[self.vocab_word_to_ind(')')] = 0
-                            else:
-                                output_mask[result[-1] + 1] = 0
-                ########### Conjunection ##############
-                else:
-                    # conjucntion "P2"
-                    if self.vocab_ind_to_word(result[-1]) == ',':
-                        # all previous split tokens OR first token unused
-                        output_mask[1 : self.mask_state['P1'] + 2] = 0
-                    else:
-                        # P2 used:
-                        if result[-1] <= self.mask_state['P1']:
-                            output_mask[self.mask_state['P1'] + 1] = 0
-                            self.mask_state['P2'] = result[-1]
-                        else:
-                            if result[-1] >= len(input_variable) - 2:
-                                output_mask[self.vocab_word_to_ind(')')] = 0
-                            else:
-                                output_mask[result[-1] + 1] = 0
-        except:
-            config.write_log('ERROR',"build mask exception", {'error_message': traceback.format_exc()})
-
-        self.output_mask = output_mask
-
-        return output_mask
-
     def calc_detailed_stats(self, sample_size):
 
         comp_accuracy_avg = self.comp_accuracy / sample_size
@@ -254,7 +156,100 @@ class WebAsKB_PtrVocabNet_Model():
         #print('p1_1_right_accuracy %.4f' % (p1_1_right_accuracy_avg))
         #print('p1_1_left_accuracy %.4f' % (p1_1_left_accuracy_avg))
 
-    def format_model_output(self,pairs_dev, model_out_seq):
+    def calc_output_mask(self, input_variable, result):
+        output_lang = self.output_lang
+        output_mask = torch.zeros(config.MAX_LENGTH + output_lang.n_words)
+
+        try:
+            # comp or cong
+            if self.out_mask_state == 0:
+                if len(result) > 0:
+                    self.out_mask_state += 1
+                else:
+                    self.mask_state = {'P1':None,'P2':None}
+                    output_mask[self.vocab_word_to_ind('Comp(')] = 1
+                    output_mask[self.vocab_word_to_ind('Conj(')] = 1
+
+            ##### Split1 #######
+            if self.out_mask_state == 1:
+                if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result) > 2:
+                    self.out_mask_state += 1
+                    if self.mask_state['comp'] == 'Conjunction':
+                        self.mask_state['P1'] = result[-2]
+                    else:
+                        self.mask_state['P2'] = result[-2]
+                else:
+                    #### Model chose Conjunction
+                    if self.vocab_ind_to_word(result[-1]) == 'Conj(':
+                        self.mask_state['comp'] = 'Conjunction'
+                        output_mask[0] = 1
+                    ### Model chose Composition
+                    elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
+                        self.mask_state['comp'] = 'Composition'
+                        output_mask[0:len(input_variable) - 1] = 1
+                    ### Split1, pos > 2
+                    else:
+
+                        if self.mask_state['comp'] == 'Composition':
+                            # Storing P1 value
+                            if self.vocab_ind_to_word(result[-2]) == 'Comp(':
+                                self.mask_state['P1'] = result[-1]
+                            # Only subsequent tokens allowed
+                            if result[-1] < len(input_variable) - 2:
+                                output_mask[result[-1] + 1] = 1
+                        else:
+                            # we need at least one word in split2, so break before len-1
+                            if result[-1] < len(input_variable) - 3:
+                                output_mask[result[-1] + 1] = 1
+
+                        output_mask[self.vocab_word_to_ind(',')] = 1
+
+            ##### Split2 #######
+            if self.out_mask_state == 2:
+                ########### Composition ##############
+                if self.mask_state['comp'] == 'Composition':
+                    if self.vocab_ind_to_word(result[-1]) == ',':
+                        if self.mask_state['P1'] > 0:
+                            output_mask[0] = 1
+                        else:
+                            output_mask[self.vocab_word_to_ind('%composition')] = 1
+                    elif self.vocab_ind_to_word(result[-1]) == '%composition':
+                        if self.mask_state['P2'] >= len(input_variable) - 1:
+                            output_mask[self.vocab_word_to_ind(')')] = 1
+                        else:
+                            output_mask[self.mask_state['P2']] = 1
+                    else:
+                        if result[-1] == self.mask_state['P1'] - 1:
+                            output_mask[self.vocab_word_to_ind('%composition')] = 1
+                        else:
+                            if result[-1] >= len(input_variable) - 2:
+                                output_mask[self.vocab_word_to_ind(')')] = 1
+                            else:
+                                output_mask[result[-1] + 1] = 1
+                ########### Conjunction ##############
+                else:
+                    # conjucntion "P2"
+                    if self.vocab_ind_to_word(result[-1]) == ',':
+                        # all previous split tokens OR first token unused
+                        output_mask[1: self.mask_state['P1'] + 2] = 1
+                    else:
+                        # P2 used:
+                        if result[-1] <= self.mask_state['P1']:
+                            output_mask[self.mask_state['P1'] + 1] = 1
+                            self.mask_state['P2'] = result[-1]
+                        else:
+                            if result[-1] >= len(input_variable) - 2:
+                                output_mask[self.vocab_word_to_ind(')')] = 1
+                            else:
+                                output_mask[result[-1] + 1] = 1
+        except:
+            config.write_log('ERROR', "build mask exception", {'error_message': traceback.format_exc()})
+
+        self.output_mask = output_mask
+
+        return output_mask
+
+    def format_model_output(self, pairs_dev, model_out_seq, output_dists, output_masks):
         output_lang = self.output_lang
         input_tokens = [token['dependentGloss'] for token in pairs_dev['aux_data']['sorted_annotations']]
 
@@ -299,6 +294,12 @@ class WebAsKB_PtrVocabNet_Model():
                 if model_out_seq[out_pos] >= len(input_tokens):
                     raise Exception('format_model_output_error', 'illigal value - split2')
                 split_part2_tokens.append(input_tokens[model_out_seq[out_pos]])
+
+                ### PATCH !!!!
+                #if comp == 'composition' and model_out_seq[out_pos - 1] == output_lang.word2index[
+                #    '%composition'] + config.MAX_LENGTH:
+                #    split_part1_tokens.append(split_part2_tokens[-1])
+                #    split_part2_tokens = split_part2_tokens[0:-1]
             out_pos+=1
 
         if len(split_part1_tokens) == 0:
@@ -312,11 +313,14 @@ class WebAsKB_PtrVocabNet_Model():
             raise Exception('format_model_output_error', 'no %composition in split2')
 
         return [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
-                           'same_comp': int(comp == comp_sup), 'p1_sup': p1_sup, \
-                           'p2_sup': p2_sup, 'split_part1': ' '.join(split_part1_tokens), \
-                           'split_part2': ' '.join(split_part2_tokens),
-                           'question': pairs_dev['aux_data']['question'], \
-                           'answers': pairs_dev['aux_data']['answers']}]
+                        'same_comp': int(comp == comp_sup),\
+                        'p1':self.mask_state['P1'], 'p1_sup': p1_sup, \
+                        'p2':self.mask_state['P2'], 'p2_sup': p2_sup, \
+                        'split_part1': ' '.join(split_part1_tokens), \
+                        'split_part2': ' '.join(split_part2_tokens),
+                        'question': pairs_dev['aux_data']['question'], \
+                        'answers': pairs_dev['aux_data']['answers'], \
+                        'output_dists': output_dists, 'output_masks': output_masks}]
 
     def save_model(self):
         torch.save(self.encoder, config.neural_model_dir + 'encoder.pkl')
@@ -346,16 +350,19 @@ class WebAsKB_PtrVocabNet_Model():
 
         decoder_hidden = encoder_hidden
         result = []
+        output_masks = []
+        output_dists = []
         # Without teacher forcing: use its own predictions as the next input
         sub_optimal_chosen = False
         output_mask = None
+        output_dist = None
         self.out_mask_state = 0
 
         for di in range(len(target_variable)):
             if config.use_output_masking:
                 output_mask = self.calc_output_mask(input_variable,result)
 
-            decoder_output, decoder_hidden, decoder_attention = self.decoder(
+            decoder_output, decoder_hidden, output_dist = self.decoder(
                 decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
 
             #mask_vector = (output_mask<1).data
@@ -366,7 +373,7 @@ class WebAsKB_PtrVocabNet_Model():
             loss += self.criterion(decoder_output, target_variable[di])
 
             if config.use_output_masking:
-                curr_output = np.argmax(decoder_output.data - output_mask.data)
+                curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
             else:
                 curr_output = np.argmax(decoder_output.data)
 
@@ -376,9 +383,11 @@ class WebAsKB_PtrVocabNet_Model():
                 decoder_input = Variable(torch.LongTensor([curr_output]))
 
             result.append(curr_output)
+            output_masks.append(output_mask.int().tolist())
+            output_dists.append((output_dist.data[0] * 100).round().int().tolist())
 
         if type(loss)!=int:
             loss_value = loss.data[0] / target_length
         else:
             loss_value = 0
-        return loss_value , result, loss
+        return loss_value , result, loss, output_dists, output_masks

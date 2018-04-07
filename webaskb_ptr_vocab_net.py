@@ -101,7 +101,7 @@ class WebAsKB_PtrVocabNet():
         model_output = self.net.evaluate()
         with open(config.split_points_dir + config.EVALUATION_SET + '.json', 'w') as outfile:
             outfile.write(json.dumps(model_output))
-        pd.DataFrame(model_output).to_csv(config.split_points_dir + config.EVALUATION_SET + '.csv' + '.csv',encoding="utf-8",index=False)
+        pd.DataFrame(model_output).to_csv(config.split_points_dir + config.EVALUATION_SET + '.csv',encoding="utf-8",index=False)
 
 if __name__ == "__main__":
     import argparse

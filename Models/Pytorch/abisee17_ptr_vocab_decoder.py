@@ -76,12 +76,12 @@ class AttnDecoderRNN(nn.Module):
         #    softmax_output = torch.cat((torch.log(input_dist) , \
         #                                Variable(torch.ones(self.output_size), requires_grad = False).view(1,-1) * -100), 1)
         #else:
-        softmax_output = torch.log(torch.cat(((1 - Pgen) * input_dist , Pgen * vocab_dist) , 1))
-
+        output_distribution = torch.cat(((1 - Pgen) * input_dist , Pgen * vocab_dist) , 1)
+        softmax_output = torch.log(output_distribution)
         # WRONG - experimenting. ..
         #softmax_output = F.log_softmax(torch.cat(((1 - Pgen) * attn_weights, Pgen * self.out(output[0])), 1))
 
-        return softmax_output, decoder_hidden, attn_weights
+        return softmax_output, decoder_hidden, output_distribution
 
     def initHidden(self):
         # initialize hidden layer with zeros

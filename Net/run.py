@@ -52,7 +52,7 @@ class NNRun():
             else:
                 teacher_forcing = False
 
-            train_loss, result, loss = self.model.forward(input_variable, target_variable, loss,
+            train_loss, output_seq, loss = self.model.forward(input_variable, target_variable, loss,
                                                     DO_TECHER_FORCING=teacher_forcing)
 
             # computing gradients
@@ -97,13 +97,13 @@ class NNRun():
                 print(test_iter)
             testing_pair = pairs_dev[test_iter]
 
-            test_loss , result, loss  = self.model.forward(testing_pair['x'], testing_pair['y'])
+            test_loss , output_seq, loss, output_dists, output_masks  = self.model.forward(testing_pair['x'], testing_pair['y'])
             self.test_loss += test_loss
 
             # generating model output
             if gen_model_output and config.gen_model_output:
                 try:
-                    model_output +=  self.model.format_model_output(testing_pair, result)
+                    model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks)
                 except Exception as inst:
                     if inst.args[0] == 'format_model_output_error':
                         if inst.args[1] in model_format_errors:
@@ -116,11 +116,11 @@ class NNRun():
                     model_output += [{'ID': testing_pair['aux_data']['ID'], 'question': testing_pair['aux_data']['question'], \
                            'answers': testing_pair['aux_data']['answers']}]
 
-            # cases in which no result or target exist will be considered a mistake (equivalent to accuracy append 0)
-            if result == [] or len(testing_pair['y']) == 0:
+            # cases in which no output_seq or target exist will be considered a mistake (equivalent to accuracy append 0)
+            if output_seq == [] or len(testing_pair['y']) == 0:
                 continue
 
-            accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], result, testing_pair['aux_data'])
+            accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], output_seq, testing_pair['aux_data'])
 
         ##### LOG STATS #########
         self.curr_accuracy = accuracy_avg / sample_size

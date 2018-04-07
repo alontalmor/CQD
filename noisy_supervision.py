@@ -357,7 +357,7 @@ class NoisySupervision():
 
                 ptr_ind_offset = question['p1']
 
-                for ind in range(question['p1'],question['p2']):
+                for ind in range(question['p1'],question['p2'] + 1):
                     # duplicate token will be registered as "dup"
                     question['seq2seq_output'].append('Copy')
                     question['pointer_ind'].append(ind)
@@ -373,7 +373,7 @@ class NoisySupervision():
                 question['seq2seq_output'].append('%composition')
                 question['pointer_ind'].append(None)
 
-                for ind in range(question['p2'],len(question['rephrased_tokens'])):
+                for ind in range(question['p2'] + 1,len(question['rephrased_tokens'])):
                     # duplicate token will be registered as "dup"
                     question['seq2seq_output'].append('Copy')
                     question['pointer_ind'].append(ind)
