@@ -214,10 +214,10 @@ class WebAsKB_PtrVocabNet_Model():
                         else:
                             output_mask[self.vocab_word_to_ind('%composition')] = 1
                     elif self.vocab_ind_to_word(result[-1]) == '%composition':
-                        if self.mask_state['P2'] >= len(input_variable) - 1:
+                        if self.mask_state['P2'] >= len(input_variable) - 2:
                             output_mask[self.vocab_word_to_ind(')')] = 1
                         else:
-                            output_mask[self.mask_state['P2']] = 1
+                            output_mask[self.mask_state['P2'] + 1] = 1
                     else:
                         if result[-1] == self.mask_state['P1'] - 1:
                             output_mask[self.vocab_word_to_ind('%composition')] = 1
