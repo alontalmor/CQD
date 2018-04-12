@@ -189,12 +189,14 @@ class Config:
             config.write_log('ERROR', "load from dropbox failed", {'error_message': traceback.format_exc()})
 
     def store_pytorch_model(self, model, dirname, filename):
+        start_time = datetime.datetime.now()
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
-
         torch.save(model, dirname + filename)
         if config.USE_CLOUD_STORAGE:
             config.store_on_cloud(dirname + filename + '.pkl', from_file=True, local_path= dirname + filename + '.pkl')
+        config.write_log('INFO', "store_pytorch_model",
+                         {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + filename})
 
     def load_pytorch_model(self, dirname, filename):
         start_time = datetime.datetime.now()
@@ -204,7 +206,7 @@ class Config:
             config.load_from_cloud(dirname + filename + '.pkl', local_path= dirname + filename +'.pkl', to_file=True)
 
         model =  torch.load(dirname + filename + '.pkl')
-        config.write_log('INFO', "load_pytorch_model one", {'time it took': str(datetime.datetime.now() - start_time), 'path':dirname + filename})
+        config.write_log('INFO', "load_pytorch_model", {'time it took': str(datetime.datetime.now() - start_time), 'path':dirname + filename})
         return model
 
     def store_csv(self, data, dirname, filename):
