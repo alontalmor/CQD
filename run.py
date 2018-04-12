@@ -54,9 +54,9 @@ elif args.operation == 'train_RL':
     config.LOAD_SAVED_MODEL = True
     config.RL_Training = True
     config.always_save_model = True
-    config.max_evalset_size = 200
-    config.evaluate_every = 300
-    config.MAX_ITER = 301
+    config.max_evalset_size = 2000
+    config.evaluate_every = 3000
+    config.MAX_ITER = 9001
 
     config.LR = 0.00017
     config.ADA_GRAD_LR_DECAY = 0

@@ -84,6 +84,7 @@ class NNRun():
                     self.model.save_model()
 
                     config.store_json(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET + '_' + str(self.iteration))
+                    config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET + '_' + str(self.iteration))
 
                     self.best_accuracy = self.curr_accuracy
                     self.best_accuracy_iter = self.iteration
