@@ -378,8 +378,8 @@ class WebAsKB_PtrVocabNet_Model():
         return output
 
     def save_model(self):
-        config.store_pytorch_model(self.encoder, config.neural_model_dir + config.out_subdir, 'encoder.pkl')
-        config.store_pytorch_model(self.decoder, config.neural_model_dir + config.out_subdir, 'decoder.pkl')
+        config.store_pytorch_model(self.encoder, config.neural_model_dir + config.out_subdir, 'encoder')
+        config.store_pytorch_model(self.decoder, config.neural_model_dir + config.out_subdir, 'decoder')
 
     def forward(self,input_variable, target_variable, reward = 0, loss=0,  DO_TECHER_FORCING=False):
         encoder_hidden = self.encoder.initHidden()
