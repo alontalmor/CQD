@@ -11,7 +11,7 @@ This model was trained on the dataset [ComplexWebQuestions](http://nlp.cs.tau.ac
 1.  First, clone the repository:
 
     ```
-    git clone https://github.com/alontalmor/webaskb.git
+    git clone https://alontalmor@bitbucket.org/alontalmor/webkb_dev.git
     ```
 
 2.  Change your directory to where you cloned the files:

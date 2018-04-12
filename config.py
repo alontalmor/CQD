@@ -240,6 +240,8 @@ class Config:
     def load_pkl(self, dirname, filename):
         start_time = datetime.datetime.now()
         if config.USE_CLOUD_STORAGE:
+            if not os.path.isdir(dirname):
+                os.mkdir(dirname)
             config.load_from_cloud(dirname + filename + '.pkl', to_file=True, local_path=dirname + filename + '.pkl')
         with open(dirname + filename + '.pkl', 'rb') as outfile:
             data = pickle.load(outfile)
@@ -267,6 +269,8 @@ class Config:
     def load_json(self,dirname ,filename):
         start_time = datetime.datetime.now()
         if config.USE_CLOUD_STORAGE:
+            if not os.path.isdir(dirname):
+                os.mkdir(dirname)
             config.load_from_cloud(dirname + filename + '.json', to_file=True, local_path=dirname + filename + '.json')
         with open(dirname + filename + '.json', 'rb') as outfile:
             data = json.load(outfile)
