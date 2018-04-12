@@ -81,7 +81,7 @@ class NNRun():
 
                 if self.best_accuracy + 0.001 < self.curr_accuracy or config.always_save_model:
                     print('saving model')
-                    self.model.save_model()
+                    self.model.save_model('_' + str(self.iteration))
 
                     config.store_json(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET + '_' + str(self.iteration))
                     config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET + '_' + str(self.iteration))
