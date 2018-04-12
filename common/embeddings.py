@@ -27,6 +27,7 @@ class Lang:
         else:
             self.word2count[word] += 1
 
+
 class embeddings:
     def __init__(self):
         pass

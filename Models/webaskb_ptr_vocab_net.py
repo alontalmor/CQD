@@ -7,20 +7,26 @@ from Models.Pytorch.abisee17_ptr_vocab_decoder import AttnDecoderRNN
 from config import *
 
 class WebAsKB_PtrVocabNet_Model():
-    def __init__(self , input_lang, output_lang):
+    def __init__(self , input_lang, output_lang, criterion=None):
 
-        self.input_lang = input_lang
         self.output_lang = output_lang
+        self.input_lang = input_lang
 
         if config.LOAD_SAVED_MODEL:
-            self.encoder = torch.load(config.neural_model_dir  + 'encoder.pkl')
-            self.decoder = torch.load(config.neural_model_dir  + 'decoder.pkl')
+            self.encoder = config.load_pytorch_model(config.neural_model_dir + config.input_model, 'encoder')
+            self.decoder = config.load_pytorch_model(config.neural_model_dir + config.input_model, 'decoder')
         else:
             self.encoder = EncoderRNN(input_lang.n_words, config.hidden_size)
             self.decoder = AttnDecoderRNN(output_lang.n_words, config.hidden_size)
 
+        #if criterion is None:
         self.criterion = nn.NLLLoss()
+        #else:
+        #    self.criterion = criterion
         #self.criterion = nn.CrossEntropyLoss()
+
+        # model expressivness, used in Masking, and RL sampling.
+        self.exp = {'Skip':0}
 
     def init_stats(self):
         self.avg_exact_token_match = 0
@@ -159,6 +165,7 @@ class WebAsKB_PtrVocabNet_Model():
     def calc_output_mask(self, input_variable, result):
         output_lang = self.output_lang
         output_mask = torch.zeros(config.MAX_LENGTH + output_lang.n_words)
+        input_len = len(input_variable) - 1
 
         try:
             # comp or cong
@@ -182,11 +189,11 @@ class WebAsKB_PtrVocabNet_Model():
                     #### Model chose Conjunction
                     if self.vocab_ind_to_word(result[-1]) == 'Conj(':
                         self.mask_state['comp'] = 'Conjunction'
-                        output_mask[0] = 1
+                        output_mask[0:min(1 + config.skip_limit, input_len)] = 1
                     ### Model chose Composition
                     elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
                         self.mask_state['comp'] = 'Composition'
-                        output_mask[0:len(input_variable) - 1] = 1
+                        output_mask[0:input_len] = 1
                     ### Split1, pos > 2
                     else:
 
@@ -195,12 +202,12 @@ class WebAsKB_PtrVocabNet_Model():
                             if self.vocab_ind_to_word(result[-2]) == 'Comp(':
                                 self.mask_state['P1'] = result[-1]
                             # Only subsequent tokens allowed
-                            if result[-1] < len(input_variable) - 2:
-                                output_mask[result[-1] + 1] = 1
+                            if result[-1] < input_len - 1:
+                                output_mask[result[-1] + 1: min(result[-1] + 2 + config.skip_limit, input_len)] = 1
                         else:
                             # we need at least one word in split2, so break before len-1
-                            if result[-1] < len(input_variable) - 3:
-                                output_mask[result[-1] + 1] = 1
+                            if result[-1] < input_len - 2:
+                                output_mask[result[-1] + 1: min(result[-1] + 2 + config.skip_limit, input_len - 1)] = 1
 
                         output_mask[self.vocab_word_to_ind(',')] = 1
 
@@ -210,11 +217,11 @@ class WebAsKB_PtrVocabNet_Model():
                 if self.mask_state['comp'] == 'Composition':
                     if self.vocab_ind_to_word(result[-1]) == ',':
                         if self.mask_state['P1'] > 0:
-                            output_mask[0] = 1
+                            output_mask[0:min(1 + config.skip_limit, self.mask_state['P1'])] = 1
                         else:
                             output_mask[self.vocab_word_to_ind('%composition')] = 1
                     elif self.vocab_ind_to_word(result[-1]) == '%composition':
-                        if self.mask_state['P2'] >= len(input_variable) - 2:
+                        if self.mask_state['P2'] >= input_len - 1:
                             output_mask[self.vocab_word_to_ind(')')] = 1
                         else:
                             output_mask[self.mask_state['P2'] + 1] = 1
@@ -222,10 +229,10 @@ class WebAsKB_PtrVocabNet_Model():
                         if result[-1] == self.mask_state['P1'] - 1:
                             output_mask[self.vocab_word_to_ind('%composition')] = 1
                         else:
-                            if result[-1] >= len(input_variable) - 2:
+                            if result[-1] >= input_len - 1:
                                 output_mask[self.vocab_word_to_ind(')')] = 1
                             else:
-                                output_mask[result[-1] + 1] = 1
+                                output_mask[result[-1] + 1 : min(result[-1] + 2 + config.skip_limit, input_len)] = 1
                 ########### Conjunction ##############
                 else:
                     # conjucntion "P2"
@@ -238,10 +245,10 @@ class WebAsKB_PtrVocabNet_Model():
                             output_mask[self.mask_state['P1'] + 1] = 1
                             self.mask_state['P2'] = result[-1]
                         else:
-                            if result[-1] >= len(input_variable) - 2:
+                            if result[-1] >= input_len - 1:
                                 output_mask[self.vocab_word_to_ind(')')] = 1
                             else:
-                                output_mask[result[-1] + 1] = 1
+                                output_mask[result[-1] + 1 : min(result[-1] + 2 + config.skip_limit, input_len)] = 1
         except:
             config.write_log('ERROR', "build mask exception", {'error_message': traceback.format_exc()})
 
@@ -249,17 +256,44 @@ class WebAsKB_PtrVocabNet_Model():
 
         return output_mask
 
-    def format_model_output(self, pairs_dev, model_out_seq, output_dists, output_masks):
+    def format_model_output(self, pairs_dev, in_model_out_seq, output_dists, output_masks, skip_ind=None):
+        model_out_seq = in_model_out_seq.copy()
         output_lang = self.output_lang
         input_tokens = [token['dependentGloss'] for token in pairs_dev['aux_data']['sorted_annotations']]
+        pointer_ind = []
+        seq2seq_output = []
+
 
         if len(model_out_seq)==0:
             raise Exception('format_model_output_error', 'zero len output')
 
+        # RL trajectory generation - PATCH (we should generate trajectories by using P(W) not by skipping
+        # words after sequence has been generated.
+        skip_ind_list = []
+        skip_token_list = []
+        if config.gen_trajectories:
+            if skip_ind is None:
+                # randomaly chosing skips
+                while len(skip_ind_list) < config.skip_limit:
+                    skip_ind = random.randint(0, len(model_out_seq) - 1)
+                    if model_out_seq[skip_ind] < len(input_tokens):
+                        skip_ind_list.append(skip_ind)
+                        skip_token_list.append(input_tokens[model_out_seq[skip_ind]])
+                        del model_out_seq[skip_ind]
+            else:
+                # skips are given
+                skip_ind_list.append(skip_ind)
+                skip_token_list.append(input_tokens[model_out_seq[skip_ind]])
+                del model_out_seq[skip_ind]
+
         if model_out_seq[0] == output_lang.word2index['Comp(']+config.MAX_LENGTH:
             comp = 'composition'
+            pointer_ind.append(None)
+            seq2seq_output.append('Comp(')
         elif model_out_seq[0] == output_lang.word2index['Conj(']+config.MAX_LENGTH:
             comp = 'conjunction'
+            pointer_ind.append(None)
+            seq2seq_output.append('Conj(')
         else:
             raise Exception('format_model_output_error', 'bad compositionality type')
 
@@ -281,19 +315,27 @@ class WebAsKB_PtrVocabNet_Model():
             if model_out_seq[out_pos] >= len(input_tokens):
                 raise Exception('format_model_output_error', 'illigal value - split1')
             split_part1_tokens.append(input_tokens[model_out_seq[out_pos]])
+            pointer_ind.append(model_out_seq[out_pos])
+            seq2seq_output.append('Copy')
             out_pos+=1
 
         # skip the ','
         out_pos += 1
+        pointer_ind.append(None)
+        seq2seq_output.append(',')
 
         split_part2_tokens = []
         while out_pos<len(model_out_seq) and model_out_seq[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
             if comp == 'composition' and model_out_seq[out_pos] == output_lang.word2index['%composition'] + config.MAX_LENGTH:
                 split_part2_tokens.append('%composition')
+                pointer_ind.append(None)
+                seq2seq_output.append('%composition')
             else:
                 if model_out_seq[out_pos] >= len(input_tokens):
                     raise Exception('format_model_output_error', 'illigal value - split2')
                 split_part2_tokens.append(input_tokens[model_out_seq[out_pos]])
+                pointer_ind.append(model_out_seq[out_pos])
+                seq2seq_output.append('Copy')
 
                 ### PATCH !!!!
                 #if comp == 'composition' and model_out_seq[out_pos - 1] == output_lang.word2index[
@@ -301,6 +343,9 @@ class WebAsKB_PtrVocabNet_Model():
                 #    split_part1_tokens.append(split_part2_tokens[-1])
                 #    split_part2_tokens = split_part2_tokens[0:-1]
             out_pos+=1
+
+        pointer_ind.append(None)
+        seq2seq_output.append(')')
 
         if len(split_part1_tokens) == 0:
             raise Exception('format_model_output_error', 'split1 len 0')
@@ -312,23 +357,31 @@ class WebAsKB_PtrVocabNet_Model():
         if comp == 'composition' and ((pd.Series(split_part2_tokens) == '%composition') * 1.0).sum() != 1:
             raise Exception('format_model_output_error', 'no %composition in split2')
 
-        return [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
-                        'same_comp': int(comp == comp_sup),\
-                        'p1':self.mask_state['P1'], 'p1_sup': p1_sup, \
-                        'p2':self.mask_state['P2'], 'p2_sup': p2_sup, \
-                        'split_part1': ' '.join(split_part1_tokens), \
-                        'split_part2': ' '.join(split_part2_tokens),
-                        'question': pairs_dev['aux_data']['question'], \
-                        'answers': pairs_dev['aux_data']['answers'], \
-                        'output_dists': output_dists, 'output_masks': output_masks}]
+
+        output = [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
+                    'same_comp': int(comp == comp_sup),\
+                    'p1':self.mask_state['P1'], 'p1_sup': p1_sup, \
+                    'p2':self.mask_state['P2'], 'p2_sup': p2_sup, \
+                    'split_part1': ' '.join(split_part1_tokens), \
+                    'split_part2': ' '.join(split_part2_tokens),
+                    'question': pairs_dev['aux_data']['question'], \
+                    'answers': pairs_dev['aux_data']['answers'], \
+                    'sorted_annotations': pairs_dev['aux_data']['sorted_annotations'], \
+                    'pointer_ind': pointer_ind, 'seq2seq_output': seq2seq_output, \
+                    'output_seq': model_out_seq, 'skip_ind_list':skip_ind_list,\
+                    'skip_token_list':skip_token_list}]
+
+        if config.SAVE_DISTRIBUTIONS:
+            output[0] = output[0].update({'output_dists': output_dists,\
+                    'output_masks': output_masks})
+
+        return output
 
     def save_model(self):
-        torch.save(self.encoder, config.neural_model_dir + 'encoder.pkl')
-        config.store_file(config.neural_model_dir + 'encoder.pkl', config.neural_model_dir + 'encoder.pkl')
-        torch.save(self.decoder, config.neural_model_dir + 'decoder.pkl')
-        config.store_file(config.neural_model_dir + 'decoder.pkl', config.neural_model_dir + 'decoder.pkl')
+        config.store_pytorch_model(self.encoder, config.neural_model_dir + config.out_subdir, 'encoder.pkl')
+        config.store_pytorch_model(self.decoder, config.neural_model_dir + config.out_subdir, 'decoder.pkl')
 
-    def forward(self,input_variable, target_variable, loss=0, DO_TECHER_FORCING=False):
+    def forward(self,input_variable, target_variable, reward = 0, loss=0,  DO_TECHER_FORCING=False):
         encoder_hidden = self.encoder.initHidden()
 
         input_length = len(input_variable)
@@ -365,12 +418,10 @@ class WebAsKB_PtrVocabNet_Model():
             decoder_output, decoder_hidden, output_dist = self.decoder(
                 decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
 
-            #mask_vector = (output_mask<1).data
-            #index_vector = Variable(torch.masked_select(torch.arange(0, config.MAX_LENGTH + self.output_lang.n_words), mask_vector).long())
-            #valid_output = torch.index_select(decoder_output, 1, index_vector)
-            #valid_target = Variable((index_vector.data == target_variable[di].data).nonzero())[0]
-
-            loss += self.criterion(decoder_output, target_variable[di])
+            if config.RL_Training:
+                loss += self.criterion(decoder_output, target_variable[di]) * reward
+            else:
+                loss += self.criterion(decoder_output, target_variable[di])
 
             if config.use_output_masking:
                 curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
@@ -385,6 +436,10 @@ class WebAsKB_PtrVocabNet_Model():
             result.append(curr_output)
             output_masks.append(output_mask.int().tolist())
             output_dists.append((output_dist.data[0] * 100).round().int().tolist())
+
+            ## EOS
+            if self.vocab_ind_to_word(curr_output) == ')':
+                break
 
         if type(loss)!=int:
             loss_value = loss.data[0] / target_length

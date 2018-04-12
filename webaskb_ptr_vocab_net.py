@@ -1,7 +1,6 @@
 from config import *
 from io import open
-import numpy as np
-import json
+from operator import itemgetter, attrgetter
 
 import torch
 from torch.autograd import Variable
@@ -19,13 +18,10 @@ class WebAsKB_PtrVocabNet():
         self.embed.load_vocabulary_word_vectors(config.glove_50d,'glove.6B.50d.txt',50)
 
     # Load Data
-    def prepareData(self, filename, is_training_set, input_lang=None, output_lang=None):
+    def prepareData(self, split_dataset, is_training_set, input_lang=None, output_lang=None):
         if input_lang is None:
             input_lang = Lang('input')
             output_lang = Lang('output')
-
-        with open(filename, 'r') as outfile:
-            split_dataset = json.load(outfile)
 
         print("Read %s sentence pairs" % len(split_dataset))
         print("Counting words...")
@@ -78,18 +74,77 @@ class WebAsKB_PtrVocabNet():
 
         return input_lang, output_lang, pairs
 
-    def load_data(self):
+    def load_data(self, data_dir, train_file, eval_file):
+        if config.LOAD_SAVED_MODEL:
+            self.input_lang = config.load_pkl(config.neural_model_dir + config.input_model,'input_lang')
+            self.output_lang = config.load_pkl(config.neural_model_dir + config.input_model, 'output_lang')
+        else:
+            self.input_lang = None
+            self.output_lang = None
+
+        noisy_sup_train = config.load_json(data_dir, train_file)
+        noisy_sup_eval = config.load_json(data_dir, eval_file)
+
         # we always read the training data - to create the language index in the same order.
+        # if model is loaded, input lang will be loaded as well
         self.input_lang, self.output_lang, self.pairs_train = \
-            self.prepareData(config.noisy_supervision_dir + 'train.json',is_training_set=True)
-        self.input_lang, self.output_lang, self.pairs_dev = \
-            self.prepareData(config.noisy_supervision_dir + config.EVALUATION_SET + '.json', \
-                                                           is_training_set=False , input_lang=self.input_lang , \
+            self.prepareData(noisy_sup_train,is_training_set=True , input_lang=self.input_lang, \
+                                                            output_lang=self.output_lang)
+        self.input_lang, self.output_lang, self.pairs_dev =  \
+            self.prepareData(noisy_sup_eval, is_training_set=False , input_lang=self.input_lang , \
                                                             output_lang=self.output_lang)
 
-    def init(self):
+        # saving language model (only input, output should be always the same)
+        if config.PERFORM_TRAINING:
+            config.store_pkl(self.input_lang, config.neural_model_dir + config.out_subdir, 'input_lang.pkl', )
+            config.store_pkl(self.output_lang, config.neural_model_dir + config.out_subdir, 'output_lang.pkl', )
+
+    def preproc_rl_data(self):
+        # checking which files exist:
+        rl_input_df = pd.DataFrame()
+        for dirname, dirnames, filenames in os.walk(config.rl_train_data + config.input_data):
+            print('pre-processing the following files: ' +   str(filenames))
+            for filename in filenames:
+                if filename.find('.json')>-1:
+                    with open(config.rl_train_data + config.input_data + filename, 'r') as outfile:
+                        curr_batch = pd.DataFrame(json.load(outfile))
+                        curr_batch['filename'] = filename
+                        rl_input_df = rl_input_df.append(curr_batch,ignore_index=True)
+
+        start = datetime.datetime.now()
+
+
+        print('# rewards below tresh: {:}'.format((((rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH) & \
+                                                    (rl_input_df['Reward_MRR'] > 0)) * 1.0).sum()))
+
+        # all cases of reward under tresh will be zero
+        rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
+
+        # all noisy supervision samples recieve reward of 0.1 if there previous reward is 0
+        rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json') & \
+                        (rl_input_df['Reward_MRR'] == 0)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
+
+        # filtering zeros
+        rl_input_df = rl_input_df[rl_input_df['Reward_MRR'] != 0]
+
+        print('# rewards above tresh: {:}'.format(((rl_input_df['Reward_MRR'] > config.MIN_REWARD_TRESH) * 1.0).sum()))
+        print('# rewards equal tresh: {:}'.format(((rl_input_df['Reward_MRR'] == config.MIN_REWARD_TRESH) * 1.0).sum()))
+
+        # def normalize(data):
+        # x = data['Reward_MRR'].as_matrix()
+        # e_x = np.exp(x)
+        # data['Reward_MRR'] = e_x / e_x.sum(axis=0)
+        #    data['Reward_MRR'] -= data['Reward_MRR'].mean()
+        #    return data
+        # rl_input_df = rl_input_df.groupby('ID').apply(normalize)
+        print(str(datetime.datetime.now() - start))
+        print(len(rl_input_df))
+
+        config.store_json(rl_input_df.to_dict(orient='rows'),config.rl_preproc_data + config.out_subdir,  config.EVALUATION_SET)
+
+    def init(self, criterion = None):
         # define batch training scheme
-        model = WebAsKB_PtrVocabNet_Model(self.input_lang, self.output_lang)
+        model = WebAsKB_PtrVocabNet_Model(self.input_lang, self.output_lang, criterion)
 
         # train using training scheme
         self.net = NNRun(model, self.pairs_train, self.pairs_dev)
@@ -99,9 +154,8 @@ class WebAsKB_PtrVocabNet():
 
     def eval(self):
         model_output = self.net.evaluate()
-        with open(config.split_points_dir + config.EVALUATION_SET + '.json', 'w') as outfile:
-            outfile.write(json.dumps(model_output))
-        pd.DataFrame(model_output).to_csv(config.split_points_dir + config.EVALUATION_SET + '.csv',encoding="utf-8",index=False)
+        config.store_json(model_output , config.split_points_dir + config.out_subdir ,config.EVALUATION_SET )
+        config.store_csv(model_output , config.split_points_dir + config.out_subdir ,config.EVALUATION_SET)
 
 if __name__ == "__main__":
     import argparse

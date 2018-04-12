@@ -3,11 +3,6 @@ from io import open
 import pandas as pd
 import numpy as np
 import random
-import torch
-import torch.nn as nn
-from torch import optim
-import datetime
-import json
 
 # A general training and evaluation class for neural networks
 
@@ -36,13 +31,18 @@ class NNRun():
         random.seed(7)
         inds = range(len(self.pairs_train))
 
-        while self.iteration < self.best_accuracy_iter + config.NO_IMPROVEMENT_ITERS_TO_STOP:
+        while self.iteration < self.best_accuracy_iter + config.NO_IMPROVEMENT_ITERS_TO_STOP \
+                and self.iteration < config.MAX_ITER:
             self.iteration += 1
             chosen_ind = random.choice(inds)
 
             training_pair = self.pairs_train[chosen_ind]
             input_variable = training_pair['x']
-            target_variable = training_pair['y']
+            target_variable = training_pair['y'] \
+
+            reward = None
+            if config.RL_Training:
+                reward = training_pair['aux_data']['Reward_MRR']
 
             # Teacher forcing
             if config.use_teacher_forcing and self.iteration < config.teacher_forcing_full_until:
@@ -53,7 +53,7 @@ class NNRun():
                 teacher_forcing = False
 
             train_loss, output_seq, loss , output_dists, output_masks = \
-                    self.model.forward(input_variable, target_variable, loss,
+                    self.model.forward(input_variable, target_variable, reward, loss,
                                                     DO_TECHER_FORCING=teacher_forcing)
 
             # computing gradients
@@ -77,10 +77,14 @@ class NNRun():
             if self.iteration % config.evaluate_every == 0:
                 print('-- Evaluating on devset --- ')
                 print('prev max adjusted accuracy %.4f' % (self.best_accuracy))
-                self.evaluate()
+                model_output = self.evaluate()
 
-                if self.best_accuracy + 0.001 < self.curr_accuracy:
+                if self.best_accuracy + 0.001 < self.curr_accuracy or config.always_save_model:
+                    print('saving model')
                     self.model.save_model()
+
+                    config.store_json(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET)
+
                     self.best_accuracy = self.curr_accuracy
                     self.best_accuracy_iter = self.iteration
 
@@ -93,7 +97,7 @@ class NNRun():
 
         self.test_loss = 0
         accuracy_avg = 0
-        for test_iter in range(0, sample_size):
+        for test_iter in range(config.evalset_offset, config.evalset_offset + sample_size):
             if test_iter % 200 == 0:
                 print(test_iter)
             testing_pair = pairs_dev[test_iter]
@@ -104,7 +108,15 @@ class NNRun():
             # generating model output
             if gen_model_output and config.gen_model_output:
                 try:
-                    model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks)
+                    if len(output_seq)>0 and config.generate_all_skips:
+                        input_tokens = [token['dependentGloss'] for token in
+                                        testing_pair['aux_data']['sorted_annotations']]
+                        for skip_ind, token in enumerate(output_seq):
+                            if output_seq[skip_ind] < len(input_tokens):
+                                model_output += self.model.format_model_output(testing_pair, output_seq, output_dists,
+                                                                       output_masks, skip_ind)
+                    else:
+                        model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks)
                 except Exception as inst:
                     if inst.args[0] == 'format_model_output_error':
                         if inst.args[1] in model_format_errors:
