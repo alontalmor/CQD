@@ -39,6 +39,9 @@ class Config:
             self.base_dir = 'webkb_dev_data/'
             self.USE_CLOUD_STORAGE = True
 
+        if not os.path.isdir(self.base_dir):
+            os.mkdir(self.base_dir)
+
         self.init()
 
     def init(self):
@@ -104,15 +107,15 @@ class Config:
         os.environ["STANFORD_MODELS"] = "Lib/stanford-ner-2016-10-31/classifiers"
         self.StanfordCoreNLP_Path = 'http://127.0.0.1:9000'
 
-        # Paths
-        self.complexwebquestions_dir = self.base_dir + "complex_web_questions/"
-        self.noisy_supervision_dir = self.base_dir + 'noisy_supervision/'
-        self.neural_model_dir = self.base_dir + "ptrnet_model/"
-        self.split_points_dir = self.base_dir + "split_points/"
-        self.rc_answer_cache_dir = self.base_dir + "rc_answer_cache/"
-        self.rl_train_data = self.base_dir + 'RL_train_data/'
-        self.rl_dev_data = self.base_dir + 'RL_dev_data/'
-        self.rl_preproc_data = self.base_dir + 'RL_preproc_data/'
+        # Paths do data subdirs (add_data_dir also dynamically creates the dir if it doesnt exist)
+        self.add_data_dir('complexwebquestions_dir', self.base_dir + "complex_web_questions/")
+        self.add_data_dir('noisy_supervision_dir', self.base_dir + "noisy_supervision/")
+        self.add_data_dir('neural_model_dir', self.base_dir + "ptrnet_model/")
+        self.add_data_dir('split_points_dir', self.base_dir + "split_points/")
+        self.add_data_dir('rc_answer_cache_dir', self.base_dir + "rc_answer_cache/")
+        self.add_data_dir('rl_train_data', self.base_dir + "RL_train_data/")
+        self.add_data_dir('rl_dev_data', self.base_dir + "RL_dev_data/")
+        self.add_data_dir('rl_preproc_data', self.base_dir + "RL_preproc_data/")
 
         self.logger = None
         if self.USE_CLOUD_STORAGE:
@@ -140,19 +143,10 @@ class Config:
         if self.gen_trajectories:
             print(' -------- Generating trajecotires! ------------')
 
-    def create_run_dir(self,run_tag, operation):
-        self.run_tag = run_tag
-
-        # training requires a new output dir for each training session
-        if operation == 'train_model':
-            self.neural_model_dir += run_tag + '/'
-                                     #+ "_" + str(self.LR) + '_' + str(self.ADA_GRAD_L2) + \
-                                     #'_' + str(self.hidden_size) + \
-                                     #'_' + str(self.dropout_p) + \
-                                     #'_' + self.run_start_time + '/'
-
-            if not os.path.isdir(self.neural_model_dir):
-                os.mkdir(self.neural_model_dir)
+    def add_data_dir(self,name, dirname):
+        if not os.path.isdir(dirname):
+            os.mkdir(dirname)
+        setattr(self,name, dirname)
 
     def write_log(self, level, message, context_dict={}):
         if self.logger is None:
