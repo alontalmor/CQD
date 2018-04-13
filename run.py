@@ -80,7 +80,7 @@ elif args.operation == 'train_RL':
     config.evaluate_every = 3000
     config.MAX_ITER = 50001
 
-    config.LR = 0.00017
+    config.LR = 0.00007
     config.ADA_GRAD_LR_DECAY = 0
     config.ADA_GRAD_L2 = 3e-4
 

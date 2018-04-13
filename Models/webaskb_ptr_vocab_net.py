@@ -372,7 +372,7 @@ class WebAsKB_PtrVocabNet_Model():
                     'skip_token_list':skip_token_list}]
 
         if config.SAVE_DISTRIBUTIONS:
-            output[0] = output[0].update({'output_dists': output_dists,\
+            output[0].update({'output_dists': output_dists,\
                     'output_masks': output_masks})
 
         return output
