@@ -195,7 +195,7 @@ class Config:
         start_time = datetime.datetime.now()
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
-        torch.save(model, dirname + filename)
+        torch.save(model, dirname + filename + '.pkl')
         if config.USE_CLOUD_STORAGE:
             config.store_on_cloud(dirname + filename + '.pkl', from_file=True, local_path= dirname + filename + '.pkl')
         config.write_log('INFO', "store_pytorch_model",
