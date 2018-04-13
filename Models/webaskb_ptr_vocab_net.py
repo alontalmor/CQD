@@ -424,7 +424,12 @@ class WebAsKB_PtrVocabNet_Model():
                 loss += self.criterion(decoder_output, target_variable[di])
 
             if config.use_output_masking:
-                curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
+                if config.sample_output_dist:
+                    masked_distribution = output_dist.data[0].numpy() * output_mask.numpy()
+                    masked_distribution /= masked_distribution.sum()
+                    curr_output = int(np.random.choice(len(masked_distribution), 1, p=masked_distribution)[0])
+                else:
+                    curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
             else:
                 curr_output = np.argmax(decoder_output.data)
 

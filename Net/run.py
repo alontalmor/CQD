@@ -8,7 +8,8 @@ import random
 
 
 class NNRun():
-    def __init__(self, model, pairs_train, pairs_dev):
+    def __init__(self, model, pairs_train, pairs_dev, pairs_trian_index):
+        self.pairs_trian_index = pairs_trian_index
         self.pairs_train = pairs_train
         self.pairs_dev = pairs_dev
         self.model = model
@@ -28,17 +29,17 @@ class NNRun():
         self.best_accuracy_iter = 0
         self.iteration = 0
 
-        random.seed(7)
-        inds = range(len(self.pairs_train))
-
         while self.iteration < self.best_accuracy_iter + config.NO_IMPROVEMENT_ITERS_TO_STOP \
                 and self.iteration < config.MAX_ITER:
             self.iteration += 1
-            chosen_ind = random.choice(inds)
+
+            # question number choice is not randomized (order of question was already randomized)
+            chosen_question = self.iteration %  len(self.pairs_trian_index)
+            chosen_ind = random.choice(self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]])
 
             training_pair = self.pairs_train[chosen_ind]
             input_variable = training_pair['x']
-            target_variable = training_pair['y'] \
+            target_variable = training_pair['y']
 
             reward = None
             if config.RL_Training:

@@ -4,18 +4,40 @@ from noisy_supervision import NoisySupervision
 #from webaskb_ptrnet import WebAsKB_PtrNet
 from webaskb_ptr_vocab_net import WebAsKB_PtrVocabNet
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("operation", help='available operations: "gen_noisy_sup","run_ptrnet" ,"train_ptrnet", "splitqa"')
 parser.add_argument("--eval_set", help='available eval sets: "dev","test"')
 parser.add_argument("--name", help='name of output folder, as well as the whole experiment')
-parser.add_argument("--data", help='define which directory to load input from (model dir for instance)')
-parser.add_argument("--model", help='define which directory to load input from (model dir for instance)')
+parser.add_argument("--data", help='define which directory to load input from (input_data)')
+parser.add_argument("--model", help='define which directory to load input from (input_model)')
 
+parsed, unknown = parser.parse_known_args() #this is an 'internal' method
+for arg in unknown:
+    if arg.startswith(("--")):
+        try:
+            value = getattr(config, arg.replace('--',''))
+            if type(value) == bool:
+                parser.add_argument(arg, type=str2bool, default=True , nargs='?',const=True)
+            else:
+                parser.add_argument(arg)
+        except:
+            print('Error - Unknown arg ' + arg + ' (not found in config)')
 args = parser.parse_args()
 
-# run dir will be created depending on the operation
-#config.create_run_dir(args.run_tag,args.operation)
+for arg in unknown:
+    if arg.startswith(("-", "--")):
+        setattr(config, arg, getattr(args, arg.replace('--','')))
+
+config.init()
 
 if args.eval_set is not None:
     config.EVALUATION_SET = args.eval_set

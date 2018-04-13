@@ -23,8 +23,12 @@ class WebAsKB_PtrVocabNet():
             input_lang = Lang('input')
             output_lang = Lang('output')
 
+        pairs_index = {}
+
         print("Read %s sentence pairs" % len(split_dataset))
         print("Counting words...")
+
+        split_dataset = [split_dataset[i] for i in  np.random.permutation(len(split_dataset))]
 
         input_lang.addWord('None')
         pairs = []
@@ -59,20 +63,23 @@ class WebAsKB_PtrVocabNet():
                     else:
                         y.append(config.MAX_LENGTH + output_lang.word2index[seq2seq_output])
 
-
             if config.use_cuda:
                 y = Variable(torch.LongTensor(y).view(-1, 1)).cuda()
             else:
                 y = Variable(torch.LongTensor(y).view(-1, 1))
 
+            # building index
+            if aux_data['question'] in pairs_index:
+                pairs_index[aux_data['question']].append(len(pairs))
+            else:
+                pairs_index[aux_data['question']] = [len(pairs)]
+
             pairs.append({'x':x,'y':y,'aux_data':aux_data})
 
         # shuffling the X,Y pairs
         print ("total number of pair:" + str(len(pairs)))
-        np.random.seed(5)
-        pairs = [pairs[i] for i in np.random.permutation(len(pairs))]
 
-        return input_lang, output_lang, pairs
+        return input_lang, output_lang, pairs, pairs_index
 
     def load_data(self, data_dir, train_file, eval_file):
         if config.LOAD_SAVED_MODEL:
@@ -87,10 +94,10 @@ class WebAsKB_PtrVocabNet():
 
         # we always read the training data - to create the language index in the same order.
         # if model is loaded, input lang will be loaded as well
-        self.input_lang, self.output_lang, self.pairs_train = \
+        self.input_lang, self.output_lang, self.pairs_train, self.pairs_trian_index = \
             self.prepareData(noisy_sup_train,is_training_set=True , input_lang=self.input_lang, \
                                                             output_lang=self.output_lang)
-        self.input_lang, self.output_lang, self.pairs_dev =  \
+        self.input_lang, self.output_lang, self.pairs_dev, pairs_dev_index =  \
             self.prepareData(noisy_sup_eval, is_training_set=False , input_lang=self.input_lang , \
                                                             output_lang=self.output_lang)
 
@@ -108,6 +115,8 @@ class WebAsKB_PtrVocabNet():
                 if filename.find('.json')>-1:
                     with open(config.rl_train_data + config.input_data + filename, 'r') as outfile:
                         curr_batch = pd.DataFrame(json.load(outfile))
+                        # removing all null values
+                        curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0]
                         curr_batch['filename'] = filename
                         rl_input_df = rl_input_df.append(curr_batch,ignore_index=True)
 
@@ -121,6 +130,8 @@ class WebAsKB_PtrVocabNet():
         rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
 
         # all noisy supervision samples recieve reward of 0.1 if there previous reward is 0
+        if len(rl_input_df[(rl_input_df['filename'] == 'noisy_sup.json')])==0:
+            print('Please make sure noisy_sup.json file containing the noisy supervision predictions and Reward_MRR is in data folder')
         rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json') & \
                         (rl_input_df['Reward_MRR'] == 0)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
 
@@ -137,8 +148,8 @@ class WebAsKB_PtrVocabNet():
         #    data['Reward_MRR'] -= data['Reward_MRR'].mean()
         #    return data
         # rl_input_df = rl_input_df.groupby('ID').apply(normalize)
-        print(str(datetime.datetime.now() - start))
-        print(len(rl_input_df))
+        print('Processing time: ' + str(datetime.datetime.now() - start))
+        print('Total number of stored samples: ' + str(len(rl_input_df)))
 
         config.store_json(rl_input_df.to_dict(orient='rows'),config.rl_preproc_data + config.out_subdir,  config.EVALUATION_SET)
 
@@ -147,7 +158,7 @@ class WebAsKB_PtrVocabNet():
         model = WebAsKB_PtrVocabNet_Model(self.input_lang, self.output_lang, criterion)
 
         # train using training scheme
-        self.net = NNRun(model, self.pairs_train, self.pairs_dev)
+        self.net = NNRun(model, self.pairs_train, self.pairs_dev, self.pairs_trian_index)
 
     def train(self):
         self.net.run_training()

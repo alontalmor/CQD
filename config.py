@@ -63,7 +63,7 @@ class Config:
         self.print_every = 1000
         self.evaluate_every = 3000
         self.evalset_offset = 0
-        self.max_evalset_size = 2000 # used to limit size of dev set when training
+        self.max_evalset_size = 40000 # used to limit size of dev set when training
 
         self.MINI_BATCH_SIZE = 10
         self.output_size = 29
@@ -78,6 +78,7 @@ class Config:
         # manual seeding for run comparison
         torch.manual_seed(0)
         random.seed(0)
+        np.random.seed(0)
 
         # used for generated the actual output in run_ptrnet
         self.gen_model_output = True
@@ -137,6 +138,7 @@ class Config:
         self.MIN_REWARD_TRESH = 0.1
 
         #  data generation
+        self.sample_output_dist = False
         self.gen_trajectories = False
         self.skip_limit = 0
         self.generate_all_skips = False

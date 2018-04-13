@@ -1,12 +1,10 @@
 
 # examples of run commands with params
-preproc_RL --name noisy_sup --data only_sup --eval_set train
-preproc_RL --name 1skip_full --data 1skip_full --eval_set train
+preproc_RL --name rl_noisy_sup --data rl_noisy_sup --eval_set train
+preproc_RL --name rl_1skip_full --data rl_1skip_full --eval_set train
 
 train_RL --name rl_noisy_sup --data rl_noisy_sup --model rl_noisy_sup --eval_set dev
 train_RL --name rl_1skip_full --data rl_1skip_full --model rl_1skip_full --eval_set dev
-
-
 
 # training vanilla
 train_supervised --name test  --eval_set dev
@@ -14,5 +12,8 @@ train_supervised --name test  --eval_set dev
 run_model --name test --model ptr_vocab --eval_set dev
 run_model --name rl_1skip_full --model rl_1skip_full --eval_set dev
 run_model --name rl_noisy_sup --model rl_noisy_sup --eval_set dev
+
+# output sampling
+run_model --name train_traj_dist_samples --model ptr_vocab --eval_set train --sample_output_dist
 
 
