@@ -6,13 +6,7 @@ from Executors.composition import Composition
 
 class SplitQA():
     def __init__(self):
-        file_name = 'model_output'
-        dataset_filename = '../mturk/compqgen/final/35000/WebComplexQuestions_35000_v2_dev'
-        run_name = file_name
-        BATCH_SIZE = 100
-
         self.Executors = [Composition(),Conjunction(),SimpleSearch()]
-        webanswer_dict = {}
 
         ##################################
         # calculate split points
@@ -37,8 +31,48 @@ class SplitQA():
         # dropbing duplicates questions
         question_list = pd.DataFrame(question_list).drop_duplicates(subset=['question']).to_dict(orient='rows')
         
-        # Loading RC answers
-        # --- Insert and alternative RC model here ---
+        # Generating RC answers
+        batch_webanswer_question = []
+        ind = 0
+        for question in question_list:
+            ind += 1
+            if ind % 500 == 0:
+                print
+                ind
+            cached_results = cache.get(ANSWER_SOURCE,
+                                       {'question': question['question'], 'goog_query': question['goog_query'],
+                                        'version': answer_batch.web_answer_version})
+            if cached_results is not None and (not FULL_REPASS or cached_results != []):
+                webanswer_dict[question['question']] = pd.DataFrame(cached_results)
+            else:
+                batch_webanswer_question.append(question)
+
+        curr_batch_webanswer_question = batch_webanswer_question[offset:offset + BATCH_SIZE]
+        if len(curr_batch_webanswer_question) == 0:
+            break
+
+        CacheResults = SearchCache.find(
+            {'querystr': question['goog_query'], "page": 0, "type": 'SCREEN', "last_update": {"$gte": six_months_ago}})
+        CacheResults_Count = CacheResults.count()
+        if USE_GOOG_CACHE and CacheResults_Count > 0:
+            cahched_item = CacheResults.next()
+            question['google_results'] = cahched_item['results']
+
+        offset += BATCH_SIZE
+        if len(non_cached_questions)>0:
+            for_goog_dict = {'target_dir': 'google','questions': [{'question': question['question'], 'goog_query': question['goog_query']} for
+                                           question in non_cached_questions]}
+            dbx.files_upload(json.dumps(for_goog_dict), '/google/' + batch_dir.split('batch_output/')[1][0:-1] + '_for_goog.json')
+
+            #dbx.files_upload(json.dumps([{'question':question['question'],'goog_query':question['goog_query']} for question in non_cached_questions]),
+            #                 '/google/' + batch_dir.split('batch_output/')[1][0:-1] + '_for_goog.json')
+
+        if len(cached_questions)>0:
+            dbx.files_upload(json.dumps(cached_questions, indent=4, sort_keys=True),
+                             '/google/' + batch_dir.split('batch_output/')[1][0:-1] + '_done.json')
+
+
+
         with open(config.rc_answer_cache_dir + config.EVALUATION_SET  + '.json', 'r') as outfile:
             webanswer_dict = json.load(outfile)
         

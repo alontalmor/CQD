@@ -1,5 +1,5 @@
 from config import *
-from SplitQA import SplitQA
+#from SplitQA import SplitQA
 from noisy_supervision import NoisySupervision
 #from webaskb_ptrnet import WebAsKB_PtrNet
 from webaskb_ptr_vocab_net import WebAsKB_PtrVocabNet

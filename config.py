@@ -97,7 +97,7 @@ class Config:
         self.WRITE_TO_TENSORBOARD = False
         self.LOAD_SAVED_MODEL = True
         self.PERFORM_TRAINING = False
-        self.SAVE_DISTRIBUTIONS = False
+        self.SAVE_DISTRIBUTIONS = True
 
         # choose dev or test
         self.EVALUATION_SET = 'dev'
@@ -132,7 +132,8 @@ class Config:
         self.glove_50d = self.base_dir + "embeddings/glove/glove.6B.50d.txt.zip"
         self.glove_300d_sample = self.base_dir + "embeddings/glove/glove.sample.300d.txt.zip"
 
-        ####  Reinforcement Learning ###
+
+        #####  Reinforcement Learning #######
         self.RL_Training = False
 
         self.MIN_REWARD_TRESH = 0.1

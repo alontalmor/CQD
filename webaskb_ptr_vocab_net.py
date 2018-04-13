@@ -111,17 +111,23 @@ class WebAsKB_PtrVocabNet():
         rl_input_df = pd.DataFrame()
         for dirname, dirnames, filenames in os.walk(config.rl_train_data + config.input_data):
             print('pre-processing the following files: ' +   str(filenames))
+
+            # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
+            filenames.remove('noisy_sup.json')
+            filenames = ['noisy_sup.json'] + filenames
+
             for filename in filenames:
                 if filename.find('.json')>-1:
                     with open(config.rl_train_data + config.input_data + filename, 'r') as outfile:
                         curr_batch = pd.DataFrame(json.load(outfile))
-                        # removing all null values
-                        curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0]
+                        curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0] # removing null values
                         curr_batch['filename'] = filename
                         rl_input_df = rl_input_df.append(curr_batch,ignore_index=True)
 
         start = datetime.datetime.now()
 
+        # dropping exact duplicate splits
+        rl_input_df = rl_input_df.drop_duplicates(['ID', 'comp', 'split_part1', 'split_part2'])
 
         print('# rewards below tresh: {:}'.format((((rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH) & \
                                                     (rl_input_df['Reward_MRR'] > 0)) * 1.0).sum()))
@@ -130,8 +136,6 @@ class WebAsKB_PtrVocabNet():
         rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
 
         # all noisy supervision samples recieve reward of 0.1 if there previous reward is 0
-        if len(rl_input_df[(rl_input_df['filename'] == 'noisy_sup.json')])==0:
-            print('Please make sure noisy_sup.json file containing the noisy supervision predictions and Reward_MRR is in data folder')
         rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json') & \
                         (rl_input_df['Reward_MRR'] == 0)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
 
