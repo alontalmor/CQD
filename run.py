@@ -80,9 +80,9 @@ elif args.operation == 'train_RL':
     config.evaluate_every = 3000
     config.MAX_ITER = 50001
 
-    config.LR = 0.0007
+    config.LR = 0.007
     config.ADA_GRAD_LR_DECAY = 0
-    config.ADA_GRAD_L2 = 3e-4
+    config.ADA_GRAD_L2 = 1e-4
 
 
     # In RL we always use teacher forcing (input to next step is always

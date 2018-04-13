@@ -32,7 +32,8 @@ class WebAsKB_PtrVocabNet():
 
         input_lang.addWord('None')
         pairs = []
-        for question in split_dataset:
+        for ind,question in enumerate(split_dataset):
+
             # training is done using only composition and conjunction examples
             if is_training_set and question['comp'] != 'composition' and question['comp'] != 'conjunction':
                 continue
@@ -54,11 +55,8 @@ class WebAsKB_PtrVocabNet():
             # adding actions to ouptuts
             y=[]
             # if supervision is nan don't add a y target variable ( happens in comperative and superlative or dev set)
-            if 'output_seq' in question:
-                if question['output_seq'] == question['output_seq']:
-                    y = question['output_seq'] # RL training, always take the actual trajectory as target.
-                else:
-                    continue
+            if 'output_seq' in question and question['output_seq'] == question['output_seq']:
+                y = question['output_seq'] # RL training, always take the actual trajectory as target.
             else:
                 if question['pointer_ind'] == question['pointer_ind']:
                     for pointer_ind, seq2seq_output in zip(question['pointer_ind'], question['seq2seq_output']):
