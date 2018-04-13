@@ -4,13 +4,14 @@ config.data_dir = '../Data/'
 config.init()
 config.EVALUATION_SET = 'train'
 config.name = 'ptr_vocab_1skip_samp'
+config.skip_limit = 1
+config.sample_output_dist = True
 config.out_subdir = config.name + '/'
 config.input_model = 'ptr_vocab' + '/'
 from webaskb_ptr_vocab_net import WebAsKB_PtrVocabNet
 random.seed(1)
 ptrnet = WebAsKB_PtrVocabNet()
-ptrnet.load_data(config.noisy_supervision_dir + 'train.json',\
-                config.noisy_supervision_dir + config.EVALUATION_SET + '.json')
+ptrnet.load_data(config.noisy_supervision_dir ,'train', config.EVALUATION_SET)
 ptrnet.init()
 
 model_output = []
