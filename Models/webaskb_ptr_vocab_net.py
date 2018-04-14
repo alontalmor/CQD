@@ -28,7 +28,7 @@ class WebAsKB_PtrVocabNet_Model():
         # model expressivness, used in Masking, and RL sampling.
         self.exp = {'Skip':0}
 
-        if config.RL_Training:
+        if config.gen_trajectories:
             self.forward_func = self.beam_search_forward
         else:
             self.forward_func = self.forward
@@ -457,7 +457,7 @@ class WebAsKB_PtrVocabNet_Model():
             loss_value = 0
         return loss_value , result, loss, output_dists, output_masks
 
-    def beam_search_farward(self, input_variable, target_variable, reward=0, loss=0, DO_TECHER_FORCING=False):
+    def beam_search_forward(self, input_variable, target_variable, reward=0, loss=0, DO_TECHER_FORCING=False):
         encoder_hidden = self.encoder.initHidden()
 
         input_length = len(input_variable)
