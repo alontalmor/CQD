@@ -54,7 +54,7 @@ class NNRun():
                 teacher_forcing = False
 
             train_loss, output_seq, loss , output_dists, output_masks = \
-                    self.model.forward(input_variable, target_variable, reward, loss,
+                    self.model.forward_func(input_variable, target_variable, reward, loss,
                                                     DO_TECHER_FORCING=teacher_forcing)
 
             # computing gradients
@@ -84,8 +84,8 @@ class NNRun():
                     print('saving model')
                     self.model.save_model('_' + str(self.iteration))
 
-                    config.store_json(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET + '_' + str(self.iteration))
-                    config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.EVALUATION_SET + '_' + str(self.iteration))
+                    config.store_json(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
+                    config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
 
                     self.best_accuracy = self.curr_accuracy
                     self.best_accuracy_iter = self.iteration
@@ -104,7 +104,7 @@ class NNRun():
                 print(test_iter)
             testing_pair = pairs_dev[test_iter]
 
-            test_loss , output_seq, loss, output_dists, output_masks  = self.model.forward(testing_pair['x'], testing_pair['y'])
+            test_loss , output_seq, loss, output_dists, output_masks  = self.model.forward_func(testing_pair['x'], testing_pair['y'])
             self.test_loss += test_loss
 
             # generating model output

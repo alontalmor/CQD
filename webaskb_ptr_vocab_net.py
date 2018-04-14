@@ -89,8 +89,8 @@ class WebAsKB_PtrVocabNet():
 
     def load_data(self, data_dir, train_file, eval_file):
         if config.LOAD_SAVED_MODEL:
-            self.input_lang = config.load_pkl(config.neural_model_dir + config.input_model,'input_lang')
-            self.output_lang = config.load_pkl(config.neural_model_dir + config.input_model, 'output_lang')
+            self.input_lang = config.load_pkl(config.neural_model_dir + config.model_dir,'input_lang')
+            self.output_lang = config.load_pkl(config.neural_model_dir + config.model_dir, 'output_lang')
         else:
             self.input_lang = None
             self.output_lang = None
@@ -115,7 +115,7 @@ class WebAsKB_PtrVocabNet():
     def preproc_rl_data(self):
         # checking which files exist:
         rl_input_df = pd.DataFrame()
-        for dirname, dirnames, filenames in os.walk(config.rl_train_data + config.input_data):
+        for dirname, dirnames, filenames in os.walk(config.rl_train_data + config.data_dir):
             print('pre-processing the following files: ' +   str(filenames))
 
             # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
@@ -124,7 +124,7 @@ class WebAsKB_PtrVocabNet():
 
             for filename in filenames:
                 if filename.find('.json')>-1:
-                    with open(config.rl_train_data + config.input_data + filename, 'r') as outfile:
+                    with open(config.rl_train_data + config.data_dir + filename, 'r') as outfile:
                         curr_batch = pd.DataFrame(json.load(outfile))
                         curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0] # removing null values
                         curr_batch['filename'] = filename
@@ -161,7 +161,7 @@ class WebAsKB_PtrVocabNet():
         print('Processing time: ' + str(datetime.datetime.now() - start))
         print('Total number of stored samples: ' + str(len(rl_input_df)))
 
-        config.store_json(rl_input_df.to_dict(orient='rows'),config.rl_preproc_data + config.out_subdir,  config.EVALUATION_SET)
+        config.store_json(rl_input_df.to_dict(orient='rows'),config.rl_preproc_data + config.out_subdir,  config.eval_set)
 
     def init(self, criterion = None):
         # define batch training scheme
@@ -175,8 +175,8 @@ class WebAsKB_PtrVocabNet():
 
     def eval(self):
         model_output = self.net.evaluate()
-        config.store_json(model_output , config.split_points_dir + config.out_subdir ,config.EVALUATION_SET )
-        config.store_csv(model_output , config.split_points_dir + config.out_subdir ,config.EVALUATION_SET)
+        config.store_json(model_output , config.split_points_dir + config.out_subdir ,config.eval_set )
+        config.store_csv(model_output , config.split_points_dir + config.out_subdir ,config.eval_set)
 
 if __name__ == "__main__":
     import argparse
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.eval_set is not None:
-        config.EVALUATION_SET = args.eval_set
+        config.eval_set = args.eval_set
 
     if args.operation == 'run_ptrnet':
         ptrnet = WebAsKB_PtrNet()

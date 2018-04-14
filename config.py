@@ -18,6 +18,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.nn.init as weight_init
 import socket
+import inspect
 
 
 import warnings
@@ -42,14 +43,11 @@ class Config:
         if not os.path.isdir(self.base_dir):
             os.mkdir(self.base_dir)
 
-        self.init()
-
-    def init(self):
         # default are "test"
         self.name = 'test'
         self.out_subdir = 'test/'
-        self.input_data = ''
-        self.input_model = ''
+        self.data_dir = ''
+        self.model_dir = ''
 
         # Neural param
         self.LR = 0.007
@@ -72,13 +70,13 @@ class Config:
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
 
+
         # used to limit size of dev set when training
         self.use_output_masking = True
 
         # manual seeding for run comparison
-        torch.manual_seed(0)
-        random.seed(0)
-        np.random.seed(0)
+        self.random_seed = 0
+
 
         # used for generated the actual output in run_ptrnet
         self.gen_model_output = True
@@ -100,7 +98,7 @@ class Config:
         self.SAVE_DISTRIBUTIONS = True
 
         # choose dev or test
-        self.EVALUATION_SET = 'dev'
+        self.eval_set = 'dev'
         self.always_save_model = False
 
         # Stanford NLP
@@ -108,30 +106,13 @@ class Config:
         os.environ["STANFORD_MODELS"] = "Lib/stanford-ner-2016-10-31/classifiers"
         self.StanfordCoreNLP_Path = 'http://127.0.0.1:9000'
 
-        # Paths do data subdirs (add_data_dir also dynamically creates the dir if it doesnt exist)
-        self.add_data_dir('complexwebquestions_dir', self.base_dir + "complex_web_questions/")
-        self.add_data_dir('noisy_supervision_dir', self.base_dir + "noisy_supervision/")
-        self.add_data_dir('neural_model_dir', self.base_dir + "ptrnet_model/")
-        self.add_data_dir('split_points_dir', self.base_dir + "split_points/")
-        self.add_data_dir('rc_answer_cache_dir', self.base_dir + "rc_answer_cache/")
-        self.add_data_dir('rl_train_data', self.base_dir + "RL_train_data/")
-        self.add_data_dir('rl_dev_data', self.base_dir + "RL_dev_data/")
-        self.add_data_dir('rl_preproc_data', self.base_dir + "RL_preproc_data/")
-
         self.logger = None
-        if self.USE_CLOUD_STORAGE:
-            print('Using Cloud Storage')
-            self.dbx = dropbox.Dropbox('7j6m2s1jYC0AAAAAAAHy69fu0OxDAU3fPbIjjarqr_1zalj8Mvypf8U71BoLT-AD')
-        else:
-            print('Using Local Storage')
-            self.dbx = None
 
         self.run_start_time = time.strftime("%m-%d_%H-%M-%S")
 
         # Data
         self.glove_50d = self.base_dir + "embeddings/glove/glove.6B.50d.txt.zip"
         self.glove_300d_sample = self.base_dir + "embeddings/glove/glove.sample.300d.txt.zip"
-
 
         #####  Reinforcement Learning #######
         self.RL_Training = False
@@ -143,6 +124,34 @@ class Config:
         self.gen_trajectories = False
         self.skip_limit = 0
         self.generate_all_skips = False
+
+    def init(self):
+        self.out_subdir = self.name + '/'
+        self.data_dir += '/'
+        self.model_dir += '/'
+
+        # Paths do data subdirs (add_data_dir also dynamically creates the dir if it doesnt exist)
+        self.add_data_dir('complexwebquestions_dir', self.base_dir + "complex_web_questions/")
+        self.add_data_dir('noisy_supervision_dir', self.base_dir + "noisy_supervision/")
+        self.add_data_dir('neural_model_dir', self.base_dir + "ptrnet_model/")
+        self.add_data_dir('split_points_dir', self.base_dir + "split_points/")
+        self.add_data_dir('rc_answer_cache_dir', self.base_dir + "rc_answer_cache/")
+        self.add_data_dir('rl_train_data', self.base_dir + "RL_train_data/")
+        self.add_data_dir('rl_dev_data', self.base_dir + "RL_dev_data/")
+        self.add_data_dir('rl_preproc_data', self.base_dir + "RL_preproc_data/")
+
+        print('Random sampling seed is:' + str(self.random_seed))
+        torch.manual_seed(self.random_seed)
+        random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
+
+        if self.USE_CLOUD_STORAGE:
+            print('Using Cloud Storage')
+            self.dbx = dropbox.Dropbox('7j6m2s1jYC0AAAAAAAHy69fu0OxDAU3fPbIjjarqr_1zalj8Mvypf8U71BoLT-AD')
+        else:
+            print('Using Local Storage')
+            self.dbx = None
+
         if self.gen_trajectories:
             print(' -------- Generating trajecotires! ------------')
 
@@ -162,7 +171,7 @@ class Config:
                 'hidden_size' : self.hidden_size,
                 'MAX_LENGTH' : self.MAX_LENGTH,
                 'EMBEDDING_VEC_SIZE' : self.EMBEDDING_VEC_SIZE,
-                'EVALUATION_SET':self.EVALUATION_SET}
+                'eval_set':self.eval_set}
 
             self.logger.set_repeated_context_dict(self.name , repeated_context_dict)
 

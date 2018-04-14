@@ -2,16 +2,16 @@ from config import *
 # initializing specific config params
 config.data_dir = '../Data/'
 config.init()
-config.EVALUATION_SET = 'train'
+config.eval_set = 'train'
 config.name = 'ptr_vocab_1skip_samp'
 config.skip_limit = 1
 config.sample_output_dist = True
 config.out_subdir = config.name + '/'
-config.input_model = 'ptr_vocab' + '/'
+config.model_dir = 'ptr_vocab' + '/'
 from webaskb_ptr_vocab_net import WebAsKB_PtrVocabNet
 random.seed(1)
 ptrnet = WebAsKB_PtrVocabNet()
-ptrnet.load_data(config.noisy_supervision_dir ,'train', config.EVALUATION_SET)
+ptrnet.load_data(config.noisy_supervision_dir ,'train', config.eval_set)
 ptrnet.init()
 
 model_output = []
@@ -46,7 +46,7 @@ for test_iter in range(0, sample_size):
         #model_output += [{'ID': testing_pair['aux_data']['ID'], 'question': testing_pair['aux_data']['question'], \
         #       'answers': testing_pair['aux_data']['answers']}]
 
-with open(config.split_points_dir + config.out_subdir + config.EVALUATION_SET + '.json', 'w') as outfile:
+with open(config.split_points_dir + config.out_subdir + config.eval_set + '.json', 'w') as outfile:
     outfile.write(json.dumps(model_output))
-pd.DataFrame(model_output).to_csv(config.split_points_dir + config.out_subdir + config.EVALUATION_SET + '.csv',encoding="utf-8",index=False)
+pd.DataFrame(model_output).to_csv(config.split_points_dir + config.out_subdir + config.eval_set + '.csv',encoding="utf-8",index=False)
     

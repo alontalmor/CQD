@@ -86,7 +86,7 @@ class WebAsKB_PtrNet():
     def load_data(self):
         # we always read the training data - to create the language index in the same order.
         self.input_lang, self.pairs_train = self.prepareData(config.noisy_supervision_dir + 'train.json',is_training_set=True)
-        self.input_lang, self.pairs_dev = self.prepareData(config.noisy_supervision_dir + config.EVALUATION_SET + '.json', \
+        self.input_lang, self.pairs_dev = self.prepareData(config.noisy_supervision_dir + config.eval_set + '.json', \
                                                            is_training_set=False , input_lang=self.input_lang)
 
     def init(self):
@@ -101,7 +101,7 @@ class WebAsKB_PtrNet():
 
     def eval(self):
         model_output = self.net.evaluate()
-        with open(config.split_points_dir + config.EVALUATION_SET + '.json', 'w') as outfile:
+        with open(config.split_points_dir + config.eval_set + '.json', 'w') as outfile:
             outfile.write(json.dumps(model_output))
 
 

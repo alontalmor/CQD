@@ -15,46 +15,34 @@ def str2bool(v):
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("operation", help='available operations: "gen_noisy_sup","run_ptrnet" ,"train_ptrnet", "splitqa"')
-parser.add_argument("--eval_set", help='available eval sets: "dev","test"')
-parser.add_argument("--name", help='name of output folder, as well as the whole experiment')
-parser.add_argument("--data", help='define which directory to load input from (input_data)')
-parser.add_argument("--model", help='define which directory to load input from (input_model)')
+#parser.add_argument("--eval_set", help='available eval sets: "dev","test"')
+#parser.add_argument("--name", help='name of output folder, as well as the whole experiment')
+#parser.add_argument("--data", help='define which directory to load input from (input_data)')
+#parser.add_argument("--model", help='define which directory to load input from (input_model)')
 
-parsed, unknown = parser.parse_known_args() #this is an 'internal' method
-for arg in unknown:
-    if arg.startswith(("--")):
-        try:
-            value = getattr(config, arg.replace('--',''))
-            if type(value) == bool:
-                parser.add_argument(arg, type=str2bool, default=True , nargs='?',const=True)
-            else:
-                parser.add_argument(arg)
-        except:
-            print('Error - Unknown arg ' + arg + ' (not found in config)')
+# adding all config attributes
+for member in inspect.getmembers(config):
+    if not inspect.ismethod(member[1]) and not member[0].startswith(("__")):
+        if type(member[1]) == bool:
+            # bool options if added will automatically considered true if not state otherwise
+            parser.add_argument('--' + member[0], type=str2bool, default=member[1], nargs='?', const=True , help=str(member[1]))
+        else:
+            parser.add_argument('--' + member[0], type=type(member[1]), default=member[1], help=str(member[1]))
+
 args = parser.parse_args()
 
-for arg in unknown:
-    if arg.startswith(("-", "--")):
-        setattr(config, arg, getattr(args, arg.replace('--','')))
+for arg in inspect.getmembers(args):
+    if not inspect.ismethod(arg[1]) and not arg[0].startswith(("__")):
+        setattr(config, arg[0], arg[1])
 
 config.init()
-
-if args.eval_set is not None:
-    config.EVALUATION_SET = args.eval_set
-if args.name is not None:
-    config.name = args.name
-    config.out_subdir = config.name + '/'
-if args.data is not None:
-    config.input_data = args.data + '/'
-if args.model is not None:
-    config.input_model = args.model + '/'
 
 if args.operation == 'gen_noisy_sup':
     noisy_sup = NoisySupervision()
     noisy_sup.gen_noisy_supervision()
 elif args.operation == 'run_model':
     ptrnet = WebAsKB_PtrVocabNet()
-    ptrnet.load_data(config.noisy_supervision_dir ,'train', config.EVALUATION_SET)
+    ptrnet.load_data(config.rl_preproc_data + config.data_dir ,'train', config.eval_set)
     ptrnet.init()
     ptrnet.eval()
 
@@ -63,7 +51,7 @@ elif args.operation == 'train_supervised':
     config.LOAD_SAVED_MODEL = False
     config.max_evalset_size = 2000
     ptrnet = WebAsKB_PtrVocabNet()
-    ptrnet.load_data(config.noisy_supervision_dir ,'train', config.EVALUATION_SET)
+    ptrnet.load_data(config.noisy_supervision_dir ,'train', config.eval_set)
     ptrnet.init()
     ptrnet.train()
 
@@ -90,7 +78,7 @@ elif args.operation == 'train_RL':
     config.teacher_forcing_full_until = float("inf")
 
     ptrnet = WebAsKB_PtrVocabNet()
-    ptrnet.load_data(config.rl_preproc_data + config.input_data ,'train', config.EVALUATION_SET)
+    ptrnet.load_data(config.rl_preproc_data + config.data_dir ,'train', config.eval_set)
     ptrnet.init()
     ptrnet.train()
 

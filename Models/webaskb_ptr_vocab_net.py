@@ -13,8 +13,8 @@ class WebAsKB_PtrVocabNet_Model():
         self.input_lang = input_lang
 
         if config.LOAD_SAVED_MODEL:
-            self.encoder = config.load_pytorch_model(config.neural_model_dir + config.input_model, 'encoder')
-            self.decoder = config.load_pytorch_model(config.neural_model_dir + config.input_model, 'decoder')
+            self.encoder = config.load_pytorch_model(config.neural_model_dir + config.model_dir, 'encoder')
+            self.decoder = config.load_pytorch_model(config.neural_model_dir + config.model_dir, 'decoder')
         else:
             self.encoder = EncoderRNN(input_lang.n_words, config.hidden_size)
             self.decoder = AttnDecoderRNN(output_lang.n_words, config.hidden_size)
@@ -27,6 +27,11 @@ class WebAsKB_PtrVocabNet_Model():
 
         # model expressivness, used in Masking, and RL sampling.
         self.exp = {'Skip':0}
+
+        if config.RL_Training:
+            self.forward_func = self.beam_search_forward
+        else:
+            self.forward_func = self.forward
 
     def init_stats(self):
         self.avg_exact_token_match = 0
@@ -451,3 +456,75 @@ class WebAsKB_PtrVocabNet_Model():
         else:
             loss_value = 0
         return loss_value , result, loss, output_dists, output_masks
+
+    def beam_search_farward(self, input_variable, target_variable, reward=0, loss=0, DO_TECHER_FORCING=False):
+        encoder_hidden = self.encoder.initHidden()
+
+        input_length = len(input_variable)
+        target_length = len(target_variable)
+
+        encoder_outputs = Variable(torch.zeros(config.MAX_LENGTH, self.encoder.hidden_size))
+        encoder_outputs = encoder_outputs.cuda() if config.use_cuda else encoder_outputs
+
+        encoder_hiddens = Variable(torch.zeros(config.MAX_LENGTH, self.encoder.hidden_size))
+        encoder_hiddens = encoder_hiddens.cuda() if config.use_cuda else encoder_hiddens
+
+        for ei in range(input_length):
+            encoder_output, encoder_hidden = self.encoder(input_variable[ei], encoder_hidden)
+            encoder_outputs[ei] = encoder_output[0][0]
+            encoder_hiddens[ei] = encoder_hidden[0][0]
+
+        decoder_input = Variable(torch.LongTensor([[config.SOS_token]]))
+        decoder_input = decoder_input.cuda() if config.use_cuda else decoder_input
+
+        decoder_hidden = encoder_hidden
+        result = []
+        output_masks = []
+        output_dists = []
+        # Without teacher forcing: use its own predictions as the next input
+        sub_optimal_chosen = False
+        output_mask = None
+        output_dist = None
+        self.out_mask_state = 0
+
+        for di in range(len(target_variable)):
+            if config.use_output_masking:
+                output_mask = self.calc_output_mask(input_variable, result)
+
+            decoder_output, decoder_hidden, output_dist = self.decoder(
+                decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
+
+            if config.RL_Training:
+                loss += self.criterion(decoder_output, target_variable[di]) * reward
+            else:
+                loss += self.criterion(decoder_output, target_variable[di])
+
+            if config.use_output_masking:
+                if config.sample_output_dist:
+                    masked_distribution = output_dist.data[0].numpy() * output_mask.numpy()
+                    masked_distribution /= masked_distribution.sum()
+                    curr_output = int(np.random.choice(len(masked_distribution), 1, p=masked_distribution)[0])
+                else:
+                    curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
+            else:
+                curr_output = np.argmax(decoder_output.data)
+
+            if DO_TECHER_FORCING:
+                decoder_input = target_variable[di]
+            else:
+                decoder_input = Variable(torch.LongTensor([curr_output]))
+
+            result.append(curr_output)
+            output_masks.append(output_mask.int().tolist())
+            output_dists.append((output_dist.data[0] * 100).round().int().tolist())
+
+            ## EOS
+            if self.vocab_ind_to_word(curr_output) == ')':
+                break
+
+        if type(loss) != int:
+            loss_value = loss.data[0] / target_length
+        else:
+            loss_value = 0
+        return loss_value, result, loss, output_dists, output_masks
+

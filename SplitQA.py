@@ -10,11 +10,11 @@ class SplitQA():
 
         ##################################
         # calculate split points
-        with open(config.split_points_dir + config.EVALUATION_SET + '.json', 'r') as outfile:
+        with open(config.split_points_dir + config.eval_set + '.json', 'r') as outfile:
             self.split_points = pd.DataFrame(json.load(outfile))
         
         ## Appending data from original complexwebquestions
-        with open(config.complexwebquestions_dir + 'ComplexWebQuestions_' + config.EVALUATION_SET + '.json', 'r') as outfile:
+        with open(config.complexwebquestions_dir + 'ComplexWebQuestions_' + config.eval_set + '.json', 'r') as outfile:
             complexwebquestions = pd.DataFrame(json.load(outfile))
         
         self.split_points = self.split_points.merge(pd.DataFrame(complexwebquestions)[['answers','ID']],on='ID',how='inner')
@@ -73,7 +73,7 @@ class SplitQA():
 
 
 
-        with open(config.rc_answer_cache_dir + config.EVALUATION_SET  + '.json', 'r') as outfile:
+        with open(config.rc_answer_cache_dir + config.eval_set  + '.json', 'r') as outfile:
             webanswer_dict = json.load(outfile)
         
             # used as dataframes in the executors..
@@ -105,7 +105,7 @@ class SplitQA():
             self.split_points = exec_res['split_points']
         
         
-        results_path = config.data_dir +  'final_results' + '_' + config.EVALUATION_SET
+        results_path = config.data_dir +  'final_results' + '_' + config.eval_set
         print ('saving results in ' + results_path)
         
         self.split_points.to_csv(results_path + '.csv',encoding="utf-8",index=False)

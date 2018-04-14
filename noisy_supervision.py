@@ -18,7 +18,7 @@ class NoisySupervision():
 
     def load_data(self):
         # loading webcomplexquestions
-        with open(config.complexwebquestions_dir + 'ComplexWebQuestions_' + config.EVALUATION_SET + '.json') as f:
+        with open(config.complexwebquestions_dir + 'ComplexWebQuestions_' + config.eval_set + '.json') as f:
             questions = json.load(f)
         print(len(questions))
         print(pd.DataFrame(questions)['compositionality_type'].value_counts())
@@ -387,7 +387,7 @@ class NoisySupervision():
             ['ID', 'comp', 'p1', 'p2', 'flip_rephrase', 'split_part1', 'machine_comp_internal', 'split_part2', 'question',
              'machine_question', 'answers', 'sorted_annotations', 'max_diff','seq2seq_output','pointer_ind','rephrased_tokens']]
 
-        with open(config.noisy_supervision_dir + config.EVALUATION_SET + '.json', 'w') as outfile:
+        with open(config.noisy_supervision_dir + config.eval_set + '.json', 'w') as outfile:
             json.dump(out.to_dict(orient="rows"), outfile, sort_keys=True, indent=4)
 
 if __name__ == "__main__":
