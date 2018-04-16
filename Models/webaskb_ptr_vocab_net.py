@@ -407,6 +407,7 @@ class WebAsKB_PtrVocabNet_Model():
         sub_optimal_chosen = False
         output_mask = None
         output_dist = None
+        output_prob = 0
         mask_state = {'P1': None, 'P2': None, 'out_mask_state': 0}
 
         di =0
@@ -439,6 +440,7 @@ class WebAsKB_PtrVocabNet_Model():
                 decoder_input = Variable(torch.LongTensor([curr_output]))
 
             result.append(curr_output)
+            output_prob += decoder_output.data[0].numpy()[curr_output]
             output_masks.append(output_mask.int().tolist())
             output_dists.append((output_dist.data[0] * 100).round().int().tolist())
 
@@ -447,13 +449,13 @@ class WebAsKB_PtrVocabNet_Model():
             if self.vocab_ind_to_word(curr_output) == ')' or (DO_TECHER_FORCING and di >= len(target_variable)):
                 break
 
-
+        output_prob /= len(result)
 
         if type(loss)!=int:
             loss_value = loss.data[0] / target_length
         else:
             loss_value = 0
-        return loss_value , result, loss, output_dists, output_masks , mask_state
+        return loss_value , result, loss, output_dists, output_masks , mask_state, output_prob
 
     def beam_search_forward(self, input_variable, target_variable, reward=0, loss=0, DO_TECHER_FORCING=False):
         encoder_hidden = self.encoder.initHidden()

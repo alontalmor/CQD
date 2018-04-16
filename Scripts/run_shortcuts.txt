@@ -13,7 +13,7 @@ train_supervised --name test  --eval_set dev
 
 run_model --name test --modeldir ptr_vocab --datadir rl_noisy_sup --eval_set dev --max_evalset_size 2000
 run_model --name rl_1skip_full --modeldir rl_1skip_full --eval_set dev
-run_model --name rl_noisy_sup --modeldir rl_noisy_sup --datadir rl_noisy_sup --eval_set dev
+run_model --name rl_noisy_sup --modeldir rl_noisy_sup --eval_set dev
 
 # output sampling
 run_model --name train_traj_dist_samples --modeldir rl_noisy_sup --datadir rl_noisy_sup --eval_set train --sample_output_dist --random_seed 1
