@@ -99,13 +99,16 @@ class WebAsKB_PtrVocabNet():
         noisy_sup_eval = config.load_json(data_dir, eval_file)
 
         # we always read the training data - to create the language index in the same order.
-        # if model is loaded, input lang will be loaded as well
+        # if model is loaded, input lang will be loaded as well, dev first so we always get the same dev ramdom sample (for same
+        # max_evalset_size)
+        self.input_lang, self.output_lang, self.pairs_dev, pairs_dev_index = \
+            self.prepareData(noisy_sup_eval, is_training_set=False, input_lang=self.input_lang, \
+                             output_lang=self.output_lang)
+
         self.input_lang, self.output_lang, self.pairs_train, self.pairs_trian_index = \
             self.prepareData(noisy_sup_train,is_training_set=True , input_lang=self.input_lang, \
-                                                            output_lang=self.output_lang)
-        self.input_lang, self.output_lang, self.pairs_dev, pairs_dev_index =  \
-            self.prepareData(noisy_sup_eval, is_training_set=False , input_lang=self.input_lang , \
-                                                            output_lang=self.output_lang)
+                            output_lang=self.output_lang)
+
 
         # saving language model (only input, output should be always the same)
         if config.PERFORM_TRAINING:
