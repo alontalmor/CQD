@@ -53,7 +53,7 @@ class NNRun():
             else:
                 teacher_forcing = False
 
-            train_loss, output_seq, loss , output_dists, output_masks, output_prob = \
+            train_loss, output_seq, loss , output_dists, output_masks, mask_state, output_prob = \
                     self.model.forward_func(input_variable, target_variable, reward, loss,
                                                     DO_TECHER_FORCING=teacher_forcing)
 
