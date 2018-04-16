@@ -1,19 +1,25 @@
 
 # examples of run commands with params
-preproc_RL --name rl_noisy_sup --data_dir rl_noisy_sup --eval_set train
-preproc_RL --name rl_1skip_full --data_dir rl_1skip_full --eval_set train
+preproc_RL --name rl_noisy_sup --datadir rl_noisy_sup --eval_set train
+preproc_RL --name rl_1skip_full --datadir rl_1skip_full --eval_set train
 
-train_RL --name rl_noisy_sup --data_dir rl_noisy_sup --model_dir rl_noisy_sup --eval_set dev
-train_RL --name rl_1skip_full --data_dir rl_1skip_full --model_dir rl_1skip_full --eval_set dev
+# Training of 2 epochs, second using 2 distribution samples of model from epoch 1
+train_RL --name rl_noisy_sup_epoch2_1 --datadir rl_noisy_sup --modeldir rl_noisy_sup --eval_set dev --max_evalset_size 2000 --evaluate_every 3000 --MAX_ITER 100000
+
+train_RL --name rl_1skip_full --datadir rl_1skip_full --modeldir rl_1skip_full --eval_set dev
 
 # training vanilla
 train_supervised --name test  --eval_set dev
 
-run_model --name test --model_dir ptr_vocab --data_dir rl_noisy_sup --eval_set dev --max_evalset_size 2000
-run_model --name rl_1skip_full --model_dir rl_1skip_full --eval_set dev
-run_model --name rl_noisy_sup --model_dir rl_noisy_sup --data_dir rl_noisy_sup --eval_set dev
+run_model --name test --modeldir ptr_vocab --datadir rl_noisy_sup --eval_set dev --max_evalset_size 2000
+run_model --name rl_1skip_full --modeldir rl_1skip_full --eval_set dev
+run_model --name rl_noisy_sup --modeldir rl_noisy_sup --datadir rl_noisy_sup --eval_set dev
 
 # output sampling
-run_model --name train_traj_dist_samples --model_dir rl_noisy_sup --data_dir rl_noisy_sup --eval_set train --sample_output_dist --random_seed 0
+run_model --name train_traj_dist_samples --modeldir rl_noisy_sup --datadir rl_noisy_sup --eval_set train --sample_output_dist --random_seed 1
+
+
+#1 sample ptr_vocab ( data dir noisy supervision)
+run_model --name beam_search_k4 --modeldir ptr_vocab  --eval_set train --beam_search_gen --K 4
 
 

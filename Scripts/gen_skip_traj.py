@@ -1,13 +1,13 @@
 from config import *
 # initializing specific config params
-config.data_dir = '../Data/'
+config.datadir = '../Data/'
 config.init()
 config.eval_set = 'train'
 config.name = 'ptr_vocab_1skip_samp'
 config.skip_limit = 1
 config.sample_output_dist = True
 config.out_subdir = config.name + '/'
-config.model_dir = 'ptr_vocab' + '/'
+config.modeldir = 'ptr_vocab' + '/'
 from webaskb_ptr_vocab_net import WebAsKB_PtrVocabNet
 random.seed(1)
 ptrnet = WebAsKB_PtrVocabNet()

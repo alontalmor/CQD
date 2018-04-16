@@ -52,7 +52,7 @@ class ElasticLogger():
 
             self.bulk_data.append(context_dict)
 
-            if len(self.bulk_data) > self.LOG_BULK_SIZE * 2 or push_bulk:
+            if (len(self.bulk_data) > self.LOG_BULK_SIZE * 2 or push_bulk) and config.use_cloud_logs:
                 res = self.es.bulk(index=self.LOG_INDEX, body=self.bulk_data, refresh=True)
                 self.bulk_data = []
                 if res['errors']:

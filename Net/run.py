@@ -53,7 +53,7 @@ class NNRun():
             else:
                 teacher_forcing = False
 
-            train_loss, output_seq, loss , output_dists, output_masks = \
+            train_loss, output_seq, loss , output_dists, output_masks, output_prob = \
                     self.model.forward_func(input_variable, target_variable, reward, loss,
                                                     DO_TECHER_FORCING=teacher_forcing)
 
@@ -104,7 +104,8 @@ class NNRun():
                 print(test_iter)
             testing_pair = pairs_dev[test_iter]
 
-            test_loss , output_seq, loss, output_dists, output_masks  = self.model.forward_func(testing_pair['x'], testing_pair['y'])
+            test_loss , output_seq, loss, output_dists, output_masks, mask_state, output_prob  = \
+                self.model.forward_func(testing_pair['x'], testing_pair['y'])
             self.test_loss += test_loss
 
             # generating model output
@@ -116,9 +117,12 @@ class NNRun():
                         for skip_ind, token in enumerate(output_seq):
                             if output_seq[skip_ind] < len(input_tokens):
                                 model_output += self.model.format_model_output(testing_pair, output_seq, output_dists,
-                                                                       output_masks, skip_ind)
+                                                                       output_masks, mask_state,output_prob, skip_ind)
+                    elif config.beam_search_gen:
+                        for seq, ms, op in zip(output_seq,mask_state,output_prob):
+                            model_output += self.model.format_model_output(testing_pair, seq, output_dists,output_masks, ms, op)
                     else:
-                        model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks)
+                        model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks, mask_state, output_prob)
                 except Exception as inst:
                     if inst.args[0] == 'format_model_output_error':
                         if inst.args[1] in model_format_errors:
@@ -135,7 +139,8 @@ class NNRun():
             if output_seq == [] or len(testing_pair['y']) == 0:
                 continue
 
-            accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], output_seq, testing_pair['aux_data'])
+            if not config.beam_search_gen:
+                accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], output_seq, testing_pair['aux_data'], mask_state)
 
         ##### LOG STATS #########
         self.curr_accuracy = accuracy_avg / sample_size

@@ -33,7 +33,9 @@ args = parser.parse_args()
 
 for arg in inspect.getmembers(args):
     if not inspect.ismethod(arg[1]) and not arg[0].startswith(("__")):
-        setattr(config, arg[0], arg[1])
+        if getattr(config, arg[0], None) !=  arg[1]:
+            print(arg[0] + " = " + str(arg[1]))
+            setattr(config, arg[0], arg[1])
 
 config.init()
 
@@ -42,7 +44,7 @@ if args.operation == 'gen_noisy_sup':
     noisy_sup.gen_noisy_supervision()
 elif args.operation == 'run_model':
     ptrnet = WebAsKB_PtrVocabNet()
-    ptrnet.load_data(config.rl_preproc_data + config.data_dir ,'train', config.eval_set)
+    ptrnet.load_data(config.noisy_supervision_dir + config.datadir ,'train', config.eval_set)
     ptrnet.init()
     ptrnet.eval()
 
@@ -64,9 +66,9 @@ elif args.operation == 'train_RL':
     config.LOAD_SAVED_MODEL = True
     config.RL_Training = True
     config.always_save_model = True
-    config.max_evalset_size = 2000
-    config.evaluate_every = 3000
-    config.MAX_ITER = 50001
+    #config.max_evalset_size = 2000
+    #config.evaluate_every = 3000
+    #config.MAX_ITER = 50001
 
     config.LR = 0.007
     config.ADA_GRAD_LR_DECAY = 0
@@ -78,7 +80,7 @@ elif args.operation == 'train_RL':
     config.teacher_forcing_full_until = float("inf")
 
     ptrnet = WebAsKB_PtrVocabNet()
-    ptrnet.load_data(config.rl_preproc_data + config.data_dir ,'train', config.eval_set)
+    ptrnet.load_data(config.rl_preproc_data + config.datadir ,'train', config.eval_set)
     ptrnet.init()
     ptrnet.train()
 

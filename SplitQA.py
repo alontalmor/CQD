@@ -105,7 +105,7 @@ class SplitQA():
             self.split_points = exec_res['split_points']
         
         
-        results_path = config.data_dir +  'final_results' + '_' + config.eval_set
+        results_path = config.datadir +  'final_results' + '_' + config.eval_set
         print ('saving results in ' + results_path)
         
         self.split_points.to_csv(results_path + '.csv',encoding="utf-8",index=False)

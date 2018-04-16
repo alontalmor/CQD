@@ -7,7 +7,6 @@ import json
 import unicodedata
 import random
 import traceback
-from common.elastic_logger import ElasticLogger
 import dropbox
 import torch
 import pickle
@@ -19,6 +18,7 @@ import torch.nn.functional as F
 import torch.nn.init as weight_init
 import socket
 import inspect
+from operator import itemgetter
 
 
 import warnings
@@ -36,9 +36,11 @@ class Config:
             self.base_dir = '/Users/alontalmor/Dropbox/Apps/WebKB/webkb_dev_data/'
             #self.base_dir = 'webkb_dev_data/'
             self.USE_CLOUD_STORAGE = False
+            self.use_cloud_logs = False
         else:
             self.base_dir = 'webkb_dev_data/'
             self.USE_CLOUD_STORAGE = True
+            self.use_cloud_logs = True
 
         if not os.path.isdir(self.base_dir):
             os.mkdir(self.base_dir)
@@ -46,8 +48,8 @@ class Config:
         # default are "test"
         self.name = 'test'
         self.out_subdir = 'test/'
-        self.data_dir = ''
-        self.model_dir = ''
+        self.datadir = ''
+        self.modeldir = ''
 
         # Neural param
         self.LR = 0.007
@@ -95,7 +97,7 @@ class Config:
         self.WRITE_TO_TENSORBOARD = False
         self.LOAD_SAVED_MODEL = True
         self.PERFORM_TRAINING = False
-        self.SAVE_DISTRIBUTIONS = True
+        self.SAVE_DISTRIBUTIONS = False
 
         # choose dev or test
         self.eval_set = 'dev'
@@ -124,11 +126,13 @@ class Config:
         self.gen_trajectories = False
         self.skip_limit = 0
         self.generate_all_skips = False
+        self.beam_search_gen = False
+        self.K = 2
 
     def init(self):
         self.out_subdir = self.name + '/'
-        self.data_dir += '/'
-        self.model_dir += '/'
+        self.datadir += '/'
+        self.modeldir += '/'
 
         # Paths do data subdirs (add_data_dir also dynamically creates the dir if it doesnt exist)
         self.add_data_dir('complexwebquestions_dir', self.base_dir + "complex_web_questions/")
@@ -154,6 +158,9 @@ class Config:
 
         if self.gen_trajectories:
             print(' -------- Generating trajecotires! ------------')
+
+        if self.beam_search_gen:
+            print(' -------- Performing Beam-Search K=' + str(config.K) + ' ------------')
 
     def add_data_dir(self,name, dirname):
         if not os.path.isdir(dirname):
@@ -258,33 +265,39 @@ class Config:
         return data
 
     def store_json(self, data, dirname, filename, pretty=False):
+        if filename.find('.json') == -1:
+            filename += '.json'
         start_time = datetime.datetime.now()
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
 
-        with open(dirname + filename + '.json', 'w') as outfile:
+        with open(dirname + filename, 'w') as outfile:
             if pretty:
                 outfile.write(json.dumps(data, sort_keys=True, indent=4))
             else:
                 outfile.write(json.dumps(data))
 
         if config.USE_CLOUD_STORAGE:
-            config.store_on_cloud(dirname + filename + '.json', from_file=True,
-                                  local_path=dirname + filename + '.json')
+            config.store_on_cloud(dirname + filename, from_file=True,
+                                  local_path=dirname + filename)
         config.write_log('INFO', "store_json",
                          {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + filename})
 
     def load_json(self,dirname ,filename):
+        if filename.find('.json') == -1:
+            filename += '.json'
         start_time = datetime.datetime.now()
         if config.USE_CLOUD_STORAGE:
             if not os.path.isdir(dirname):
                 os.mkdir(dirname)
-            config.load_from_cloud(dirname + filename + '.json', to_file=True, local_path=dirname + filename + '.json')
-        with open(dirname + filename + '.json', 'rb') as outfile:
+            config.load_from_cloud(dirname + filename, to_file=True, local_path=dirname + filename)
+        with open(dirname + filename, 'rb') as outfile:
             data = json.load(outfile)
         config.write_log('INFO', "load_json",
                          {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + filename})
         return data
 
 config = Config()
+from common.elastic_logger import ElasticLogger
+
 

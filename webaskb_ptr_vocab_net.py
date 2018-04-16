@@ -89,8 +89,8 @@ class WebAsKB_PtrVocabNet():
 
     def load_data(self, data_dir, train_file, eval_file):
         if config.LOAD_SAVED_MODEL:
-            self.input_lang = config.load_pkl(config.neural_model_dir + config.model_dir,'input_lang')
-            self.output_lang = config.load_pkl(config.neural_model_dir + config.model_dir, 'output_lang')
+            self.input_lang = config.load_pkl(config.neural_model_dir + config.modeldir,'input_lang')
+            self.output_lang = config.load_pkl(config.neural_model_dir + config.modeldir, 'output_lang')
         else:
             self.input_lang = None
             self.output_lang = None
@@ -115,7 +115,7 @@ class WebAsKB_PtrVocabNet():
     def preproc_rl_data(self):
         # checking which files exist:
         rl_input_df = pd.DataFrame()
-        for dirname, dirnames, filenames in os.walk(config.rl_train_data + config.data_dir):
+        for dirname, dirnames, filenames in os.walk(config.rl_train_data + config.datadir):
             print('pre-processing the following files: ' +   str(filenames))
 
             # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
@@ -124,11 +124,16 @@ class WebAsKB_PtrVocabNet():
 
             for filename in filenames:
                 if filename.find('.json')>-1:
-                    with open(config.rl_train_data + config.data_dir + filename, 'r') as outfile:
-                        curr_batch = pd.DataFrame(json.load(outfile))
-                        curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0] # removing null values
-                        curr_batch['filename'] = filename
-                        rl_input_df = rl_input_df.append(curr_batch,ignore_index=True)
+                    curr_batch = pd.DataFrame(config.load_json(config.rl_train_data + config.datadir,filename))
+                    curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0] # removing null values
+                    curr_batch['traj_id'] = curr_batch['ID'] + curr_batch['split_part1'].str.replace(" ","") + ',' + curr_batch['split_part2'].str.replace(" ","")
+                    if len(rl_input_df)>0:
+                        len_before_filter = len(curr_batch)
+                        curr_batch = curr_batch[~curr_batch['traj_id'].isin(rl_input_df['traj_id'])]
+                        if len(curr_batch)!= len_before_filter:
+                            config.store_json(curr_batch.to_dict(orient='rows'), config.rl_train_data + config.datadir, filename)
+                    curr_batch['filename'] = filename
+                    rl_input_df = rl_input_df.append(curr_batch, ignore_index=True)
 
         start = datetime.datetime.now()
 
