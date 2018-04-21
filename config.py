@@ -296,8 +296,7 @@ class Config:
         #        outfile.write(json.dumps(data))
 
         if config.USE_CLOUD_STORAGE:
-            config.store_on_cloud(dirname + zipfilename, from_file=True,
-                                  local_path=dirname + filename + '.zip')
+            config.store_on_cloud(dirname + zipfilename, from_file=True,local_path=dirname + zipfilename)
         config.write_log('INFO', "store_json",
                          {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + zipfilename})
 
@@ -317,7 +316,7 @@ class Config:
         if config.USE_CLOUD_STORAGE:
             if not os.path.isdir(dirname):
                 os.mkdir(dirname)
-            config.load_from_cloud(dirname + zipfilename, to_file=True, local_path=dirname + filename)
+            config.load_from_cloud(dirname + zipfilename, to_file=True, local_path=dirname + zipfilename)
 
         with zipfile.ZipFile(dirname + zipfilename,'r') as myzip:
             with myzip.open(filename) as myfile:

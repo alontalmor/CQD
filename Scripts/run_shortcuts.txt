@@ -8,7 +8,7 @@ preproc_RL --name rl_cascade1_epoch0 --datadir rl_cascade1_epoch0 --eval_set tra
 # Training of 2 epochs, second using 2 distribution samples of model from epoch 1
 train_RL --name rl_cascade0_epoch1 --datadir rl_cascade0_epoch1 --modeldir ptr_vocab --eval_set dev --max_evalset_size 2000 --evaluate_every 3000 --MAX_ITER 100000
 train_RL --name rl_cascade0_epoch2 --datadir rl_cascade0_epoch2 --modeldir ptr_vocab --eval_set dev --max_evalset_size 2000 --evaluate_every 3000 --MAX_ITER 100000
-train_RL --name rl_cascade1_epoch0 --datadir rl_cascade1_epoch0 --modeldir rl_cascade0_epoch2 --eval_set dev --max_evalset_size 2000 --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1
+train_RL --name rl_cascade1_epoch0 --datadir rl_cascade1_epoch0 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1
 
 train_RL --name rl_1skip_full --datadir rl_1skip_full --modeldir rl_1skip_full --eval_set dev
 
