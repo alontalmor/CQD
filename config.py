@@ -19,7 +19,7 @@ import torch.nn.init as weight_init
 import socket
 import inspect
 from operator import itemgetter
-
+import zipfile
 
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
@@ -50,6 +50,8 @@ class Config:
         self.out_subdir = 'test/'
         self.datadir = ''
         self.modeldir = ''
+
+        self.store_as_csv = False
 
         # Neural param
         self.LR = 0.007
@@ -123,6 +125,9 @@ class Config:
 
         #  data generation
         self.sample_output_dist = False
+        self.alpha_uni = 0.5
+        self.traj_per_question = 2
+
         self.gen_trajectories = False
         self.skip_limit = 0
         self.generate_all_skips = False
@@ -267,34 +272,61 @@ class Config:
     def store_json(self, data, dirname, filename, pretty=False):
         if filename.find('.json') == -1:
             filename += '.json'
+
+        zipfilename = filename
+        if zipfilename.find('.zip') == -1:
+            zipfilename + '.zip'
+
+        if filename.find('.zip') > -1:
+            filename = filename.replace('.zip','')
+
         start_time = datetime.datetime.now()
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
 
-        with open(dirname + filename, 'w') as outfile:
+        with zipfile.ZipFile(dirname + zipfilename, "w", zipfile.ZIP_DEFLATED) as zip_file:
             if pretty:
-                outfile.write(json.dumps(data, sort_keys=True, indent=4))
+                zip_file.writestr(filename, json.dumps(data, sort_keys=True, indent=4))
             else:
-                outfile.write(json.dumps(data))
+                zip_file.writestr(filename, json.dumps(data))
+        #with open(dirname + filename, 'w') as outfile:
+        #    if pretty:
+        #        outfile.write(json.dumps(data, sort_keys=True, indent=4))
+        #    else:
+        #        outfile.write(json.dumps(data))
 
         if config.USE_CLOUD_STORAGE:
-            config.store_on_cloud(dirname + filename, from_file=True,
-                                  local_path=dirname + filename)
+            config.store_on_cloud(dirname + zipfilename, from_file=True,
+                                  local_path=dirname + filename + '.zip')
         config.write_log('INFO', "store_json",
-                         {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + filename})
+                         {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + zipfilename})
 
     def load_json(self,dirname ,filename):
         if filename.find('.json') == -1:
             filename += '.json'
+
+        zipfilename = filename
+        if zipfilename.find('.zip') == -1:
+            zipfilename += '.zip'
+
+        if filename.find('.zip') > -1:
+            filename = filename.replace('.zip','')
+
         start_time = datetime.datetime.now()
+
         if config.USE_CLOUD_STORAGE:
             if not os.path.isdir(dirname):
                 os.mkdir(dirname)
-            config.load_from_cloud(dirname + filename, to_file=True, local_path=dirname + filename)
-        with open(dirname + filename, 'rb') as outfile:
-            data = json.load(outfile)
+            config.load_from_cloud(dirname + zipfilename, to_file=True, local_path=dirname + filename)
+
+        with zipfile.ZipFile(dirname + zipfilename,'r') as myzip:
+            with myzip.open(filename) as myfile:
+                data = json.load(myfile)
+
+        #    with open(dirname + filename, 'rb') as outfile:
+        #        data = json.load(outfile)
         config.write_log('INFO', "load_json",
-                         {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + filename})
+                         {'time it took': str(datetime.datetime.now() - start_time), 'path': dirname + zipfilename})
         return data
 
 config = Config()

@@ -35,29 +35,55 @@ class NNRun():
 
             # question number choice is not randomized (order of question was already randomized)
             chosen_question = self.iteration %  len(self.pairs_trian_index)
-            chosen_ind = random.choice(self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]])
 
-            training_pair = self.pairs_train[chosen_ind]
-            input_variable = training_pair['x']
-            target_variable = training_pair['y']
+            # assuming rewards are normalized per question, running all question trajectories sequentially
+            for chosen_ind in self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]]:
+                #chosen_ind = random.choice(self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]])
 
-            reward = None
-            if config.RL_Training:
-                reward = training_pair['aux_data']['Reward_MRR']
+                training_pair = self.pairs_train[chosen_ind]
+                input_variable = training_pair['x']
+                target_variable = training_pair['y']
 
-            # Teacher forcing
-            if config.use_teacher_forcing and self.iteration < config.teacher_forcing_full_until:
-                teacher_forcing = True
-            elif config.use_teacher_forcing and self.iteration < config.teacher_forcing_partial_until:
-                teacher_forcing = True if random.random() < 0.5 else False
-            else:
-                teacher_forcing = False
+                reward = None
+                if config.RL_Training:
+                    reward = training_pair['aux_data']['Reward_MRR']
 
-            train_loss, output_seq, loss , output_dists, output_masks, mask_state, output_prob = \
-                    self.model.forward_func(input_variable, target_variable, reward, loss,
-                                                    DO_TECHER_FORCING=teacher_forcing)
+                # Teacher forcing
+                if config.use_teacher_forcing and self.iteration < config.teacher_forcing_full_until:
+                    teacher_forcing = True
+                elif config.use_teacher_forcing and self.iteration < config.teacher_forcing_partial_until:
+                    teacher_forcing = True if random.random() < 0.5 else False
+                else:
+                    teacher_forcing = False
 
-            # computing gradients
+                train_loss, output_seq, loss , output_dists, output_masks, mask_state, output_prob = \
+                        self.model.forward_func(input_variable, target_variable, reward, loss,
+                                                        DO_TECHER_FORCING=teacher_forcing)
+
+                ### PRINT TRAINING STATS ##
+                if self.iteration % config.print_every == 0:
+                    print('--- iteration ' + str(self.iteration) +  ' run-time ' + str(datetime.datetime.now() - self.start) +  ' --------')
+                    config.write_log('INFO', 'Train stats', {'trainset loss': round(self.train_loss / config.print_every, 4) , \
+                                                             'iteration':self.iteration})
+                    self.train_loss = 0
+
+                ## EVALUATE MODEL ##
+                if self.iteration % config.evaluate_every == 0:
+                    print('-- Evaluating on devset --- ')
+                    print('prev max adjusted accuracy %.4f' % (self.best_accuracy))
+                    model_output = self.evaluate()
+
+                    if self.best_accuracy + 0.001 < self.curr_accuracy or config.always_save_model:
+                        print('saving model')
+                        self.model.save_model('_' + str(self.iteration))
+
+                        config.store_json(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
+                        config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
+
+                        self.best_accuracy = self.curr_accuracy
+                        self.best_accuracy_iter = self.iteration
+
+            # computing gradients (update is always per Example, so all RL trajectories are summed before step)
             if self.iteration % config.MINI_BATCH_SIZE == 0:
                 self.train_loss += train_loss
 
@@ -66,29 +92,6 @@ class NNRun():
                 self.model.optimizer_step()
 
                 loss = 0
-
-            ### PRINT TRAINING STATS ##
-            if self.iteration % config.print_every == 0:
-                print('--- iteration ' + str(self.iteration) +  ' run-time ' + str(datetime.datetime.now() - self.start) +  ' --------')
-                config.write_log('INFO', 'Train stats', {'trainset loss': round(self.train_loss / config.print_every, 4) , \
-                                                         'iteration':self.iteration})
-                self.train_loss = 0
-
-            ## EVALUATE MODEL ##
-            if self.iteration % config.evaluate_every == 0:
-                print('-- Evaluating on devset --- ')
-                print('prev max adjusted accuracy %.4f' % (self.best_accuracy))
-                model_output = self.evaluate()
-
-                if self.best_accuracy + 0.001 < self.curr_accuracy or config.always_save_model:
-                    print('saving model')
-                    self.model.save_model('_' + str(self.iteration))
-
-                    config.store_json(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
-                    config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
-
-                    self.best_accuracy = self.curr_accuracy
-                    self.best_accuracy_iter = self.iteration
 
     def evaluate(self, gen_model_output=True):
         model_output = []
@@ -114,11 +117,12 @@ class NNRun():
                     if len(output_seq)>0 and config.generate_all_skips:
                         input_tokens = [token['dependentGloss'] for token in
                                         testing_pair['aux_data']['sorted_annotations']]
-                        for skip_ind, token in enumerate(output_seq):
-                            if output_seq[skip_ind] < len(input_tokens):
-                                model_output += self.model.format_model_output(testing_pair, output_seq, output_dists,
-                                                                       output_masks, mask_state,output_prob, skip_ind)
-                    elif config.beam_search_gen:
+                        for seq, ms, op in zip(output_seq, mask_state, output_prob):
+                            for skip_ind, token in enumerate(seq):
+                                if seq[skip_ind] < len(input_tokens) and random.random() < 0.1:
+                                    model_output += self.model.format_model_output(testing_pair, seq, output_dists,
+                                                                       output_masks, ms,op, skip_ind)
+                    elif config.beam_search_gen or config.gen_trajectories:
                         for seq, ms, op in zip(output_seq,mask_state,output_prob):
                             model_output += self.model.format_model_output(testing_pair, seq, output_dists,output_masks, ms, op)
                     else:
@@ -139,7 +143,7 @@ class NNRun():
             if output_seq == [] or len(testing_pair['y']) == 0:
                 continue
 
-            if not config.beam_search_gen:
+            if not config.beam_search_gen and not config.gen_trajectories:
                 accuracy_avg += self.model.evaluate_accuracy(testing_pair['y'], output_seq, testing_pair['aux_data'], mask_state)
 
         ##### LOG STATS #########

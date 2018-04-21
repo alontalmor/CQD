@@ -112,8 +112,8 @@ class WebAsKB_PtrVocabNet():
 
         # saving language model (only input, output should be always the same)
         if config.PERFORM_TRAINING:
-            config.store_pkl(self.input_lang, config.neural_model_dir + config.out_subdir, 'input_lang.pkl', )
-            config.store_pkl(self.output_lang, config.neural_model_dir + config.out_subdir, 'output_lang.pkl', )
+            config.store_pkl(self.input_lang, config.neural_model_dir + config.out_subdir, 'input_lang', )
+            config.store_pkl(self.output_lang, config.neural_model_dir + config.out_subdir, 'output_lang', )
 
     def preproc_rl_data(self):
         # checking which files exist:
@@ -122,14 +122,15 @@ class WebAsKB_PtrVocabNet():
             print('pre-processing the following files: ' +   str(filenames))
 
             # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
-            filenames.remove('noisy_sup.json')
-            filenames = ['noisy_sup.json'] + filenames
+            filenames.remove('noisy_sup.json.zip')
+            filenames = ['noisy_sup.json.zip'] + filenames
 
             for filename in filenames:
                 if filename.find('.json')>-1:
                     curr_batch = pd.DataFrame(config.load_json(config.rl_train_data + config.datadir,filename))
                     curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0] # removing null values
-                    curr_batch['traj_id'] = curr_batch['ID'] + curr_batch['split_part1'].str.replace(" ","") + ',' + curr_batch['split_part2'].str.replace(" ","")
+                    curr_batch['traj_id'] = curr_batch['ID'] + curr_batch['split_part1'].str.replace(" ","") \
+                                            + ',' + curr_batch['split_part2'].str.replace(" ","")
                     if len(rl_input_df)>0:
                         len_before_filter = len(curr_batch)
                         curr_batch = curr_batch[~curr_batch['traj_id'].isin(rl_input_df['traj_id'])]
@@ -150,7 +151,7 @@ class WebAsKB_PtrVocabNet():
         rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
 
         # all noisy supervision samples recieve reward of 0.1 if there previous reward is 0
-        rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json') & \
+        rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json.zip') & \
                         (rl_input_df['Reward_MRR'] == 0)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
 
         # filtering zeros
@@ -159,13 +160,14 @@ class WebAsKB_PtrVocabNet():
         print('# rewards above tresh: {:}'.format(((rl_input_df['Reward_MRR'] > config.MIN_REWARD_TRESH) * 1.0).sum()))
         print('# rewards equal tresh: {:}'.format(((rl_input_df['Reward_MRR'] == config.MIN_REWARD_TRESH) * 1.0).sum()))
 
-        # def normalize(data):
-        # x = data['Reward_MRR'].as_matrix()
-        # e_x = np.exp(x)
-        # data['Reward_MRR'] = e_x / e_x.sum(axis=0)
-        #    data['Reward_MRR'] -= data['Reward_MRR'].mean()
-        #    return data
-        # rl_input_df = rl_input_df.groupby('ID').apply(normalize)
+        def normalize(data):
+            #x = data['Reward_MRR'].as_matrix()
+            #e_x = np.exp(x)
+            #data['Reward_MRR'] = e_x / e_x.sum(axis=0)
+            #data['Reward_MRR'] -= data['Reward_MRR'].mean()
+            data['Reward_MRR'] /= len(data['Reward_MRR'])
+            return data
+        rl_input_df = rl_input_df.groupby('ID').apply(normalize)
         print('Processing time: ' + str(datetime.datetime.now() - start))
         print('Total number of stored samples: ' + str(len(rl_input_df)))
 
@@ -184,7 +186,8 @@ class WebAsKB_PtrVocabNet():
     def eval(self):
         model_output = self.net.evaluate()
         config.store_json(model_output , config.split_points_dir + config.out_subdir ,config.eval_set )
-        config.store_csv(model_output , config.split_points_dir + config.out_subdir ,config.eval_set)
+        if config.store_as_csv:
+            config.store_csv(model_output , config.split_points_dir + config.out_subdir ,config.eval_set)
 
 if __name__ == "__main__":
     import argparse

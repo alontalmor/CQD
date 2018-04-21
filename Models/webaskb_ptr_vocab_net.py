@@ -30,6 +30,8 @@ class WebAsKB_PtrVocabNet_Model():
 
         if config.beam_search_gen:
             self.forward_func = self.beam_search_forward
+        elif config.sample_output_dist:
+            self.forward_func = self.traj_sampling_forward
         else:
             self.forward_func = self.forward
 
@@ -57,7 +59,7 @@ class WebAsKB_PtrVocabNet_Model():
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
 
-    def evaluate_accuracy(self, target_variable, result, aux_data, mask_state):
+    def evaluate_accuracy_naacl18(self, target_variable, result, aux_data, mask_state):
         accuracy = 0
         #if config.use_cuda:
         #    delta = [abs(target_variable.cpu().view(-1).data.numpy()[i] - result[i]) for i in range(len(result))]
@@ -116,12 +118,19 @@ class WebAsKB_PtrVocabNet_Model():
             if target[2] == result[2]:
                 self.p2_accuracy += 1
 
-        #accuracy += ((pd.Series(delta[1:]) == 0) * 1.0).mean() * 0.6
-        #accuracy += ((pd.Series(delta[1:]) == 1) * 1.0).mean() * 0.3
-        #accuracy += ((pd.Series(delta[1:]) == 2) * 1.0).mean() * 0.1
+        return accuracy
 
-        #abs_delta_array = np.abs(np.array(delta))
-        #self.exact_match += (np.mean((abs_delta_array == 0) * 1.0) == 1.0) * 1.0
+    def evaluate_accuracy(self, target_variable, result, aux_data, mask_state):
+        delta_seq = [abs(target_variable.view(-1).data.numpy()[i] - result[i]) for i in
+                     range(min(len(target_variable), len(result)))]
+        accuracy = 0
+        accuracy += ((pd.Series(delta_seq[0]) == 0) * 1.0).mean() * 0.4
+        accuracy += ((pd.Series(delta_seq[1:]) == 0) * 1.0).mean() * 0.6
+        accuracy += ((pd.Series(delta_seq[1:]) == 1) * 1.0).mean() * 0.3
+        accuracy += ((pd.Series(delta_seq[1:]) == 2) * 1.0).mean() * 0.1
+
+        abs_delta_array = np.abs(np.array(delta_seq))
+        self.exact_match += (np.mean((abs_delta_array == 0) * 1.0) == 1.0) * 1.0
 
         return accuracy
 
@@ -163,35 +172,200 @@ class WebAsKB_PtrVocabNet_Model():
         #print('p1_1_right_accuracy %.4f' % (p1_1_right_accuracy_avg))
         #print('p1_1_left_accuracy %.4f' % (p1_1_left_accuracy_avg))
 
-    def calc_output_mask(self, input_variable, result, mask_state):
+    def calc_output_mask(self, input_variable, program, mask_state):
         output_lang = self.output_lang
         output_mask = torch.zeros(config.MAX_LENGTH + output_lang.n_words)
         input_len = len(input_variable) - 1
 
+        # Init
+        if mask_state is None:
+            mask_state = {'state':'init','split1_inds':[],'split2_inds':[], 'skip_map':np.zeros(input_len), \
+                          'skip_limit':config.skip_limit,'%composition_found':False, 'comp':None ,'skip_to_%composition':0}
+
         try:
             # comp or cong
-            if mask_state['out_mask_state'] == 0:
-                if len(result) > 0:
-                    mask_state['out_mask_state'] += 1
+            if mask_state['state'] == 'init':
+                if len(program) > 0:
+                    if self.vocab_ind_to_word(program[-1]) == 'Conj(':
+                        mask_state['comp'] = 'Conjunction'
+                    else:
+                        mask_state['comp'] = 'Composition'
+                    mask_state['state'] = 'split1'
+                else:
+                    output_mask[self.vocab_word_to_ind('Comp(')] = 1
+                    output_mask[self.vocab_word_to_ind('Conj(')] = 1
+
+
+            ##### Split1 #######
+            if mask_state['state'] == 'split1':
+                if self.vocab_ind_to_word(program[-1]) == ',':
+                    mask_state['state'] = 'split2'
+                else:
+                    if self.vocab_ind_to_word(program[-1]) == 'Comp(':
+                        output_mask[0: input_len] = 1
+                    else:
+                        if self.vocab_ind_to_word(program[-1]) == 'Conj(':
+                            first_ind = 0
+                        else:
+                            mask_state['split1_inds'].append(program[-1])
+                            first_ind = program[-1] + 1
+
+                            # Update skip Limit
+                            mask_state['skip_limit'] -= int(mask_state['skip_map'][program[-1]])
+                            output_mask[self.vocab_word_to_ind(',')] = 1
+
+                        if (mask_state['comp'] == 'Composition' and first_ind + mask_state['skip_limit'] + 1 <= input_len) or \
+                           (mask_state['comp'] == 'Conjunction' and first_ind + mask_state['skip_limit'] + 1 <= input_len - 1):
+                            last_ind = first_ind + 1 + mask_state['skip_limit']
+                        else:
+                            if mask_state['comp'] == 'Conjunction':
+                                last_ind = input_len - 1
+                            else:
+                                last_ind = input_len
+
+                        if last_ind > first_ind:
+                            output_mask[first_ind: last_ind] = 1
+
+                        mask_state['skip_map'] = np.zeros(input_len)
+                        for count, ind in enumerate(range(first_ind, last_ind)):
+                            mask_state['skip_map'][ind] = count
+
+            ##### Split2 #######
+            if mask_state['state'] == 'split2' and self.vocab_ind_to_word(program[-1]) != ')':
+                ########### Composition ##############
+                if mask_state['comp'] == 'Composition':
+                    if self.vocab_ind_to_word(program[-1]) == '%composition':
+                        mask_state['%composition_found'] = True
+
+                    if not mask_state['%composition_found']:
+                        if self.vocab_ind_to_word(program[-1]) == ',':
+                            first_ind = 0
+                        else:
+                            mask_state['split2_inds'].append(program[-1])
+                            first_ind = program[-1] + 1
+                            # Update skip Limit
+                            mask_state['skip_limit'] -= int(mask_state['skip_map'][program[-1]])
+
+                        if first_ind + mask_state['skip_limit'] >= mask_state['split1_inds'][0]:
+                            output_mask[self.vocab_word_to_ind('%composition')] = 1
+                            mask_state['skip_to_%composition'] = mask_state['split1_inds'][0] - first_ind
+                            last_ind = mask_state['split1_inds'][0]
+                        else:
+                            last_ind = first_ind + 1 +  mask_state['skip_limit']
+
+                        if last_ind>first_ind:
+                            output_mask[first_ind: last_ind] = 1
+
+                        mask_state['skip_map'] = np.zeros(input_len)
+                        for count, ind in enumerate(range(first_ind, last_ind)):
+                            mask_state['skip_map'][ind] = count
+
+                    else: # mask_state['%composition_found']
+
+                        if self.vocab_ind_to_word(program[-1]) == '%composition':
+                            first_ind = mask_state['split1_inds'][-1] + 1
+                            mask_state['skip_limit'] -= int(mask_state['skip_to_%composition'])
+                        else:
+                            mask_state['split2_inds'].append(program[-1])
+                            first_ind = program[-1] + 1
+
+                            # Update skip Limit
+                            mask_state['skip_limit'] -= int(mask_state['skip_map'][program[-1]])
+
+                        if first_ind + mask_state['skip_limit'] + 1 <= input_len:
+                            last_ind = first_ind + 1 +  mask_state['skip_limit']
+                        else:
+                            last_ind = input_len
+                            output_mask[self.vocab_word_to_ind(')')] = 1
+                        if last_ind>first_ind:
+                            output_mask[first_ind: last_ind] = 1
+
+                        mask_state['skip_map'] = np.zeros(input_len)
+                        for count, ind in enumerate(range(first_ind, last_ind)):
+                            mask_state['skip_map'][ind] = count
+
+                if mask_state['comp'] == 'Conjunction':
+                    if self.vocab_ind_to_word(program[-1]) == ',' or program[-1] < mask_state['split1_inds'][-1]:
+                        # 1 copy
+                        if not program[-1] < mask_state['split1_inds'][-1]:
+                            output_mask[0:mask_state['split1_inds'][-1] + 1] = 1
+                        first_ind = mask_state['split1_inds'][-1] + 1
+                    else:
+                        mask_state['split2_inds'].append(program[-1])
+                        first_ind = program[-1] + 1
+
+                        # Update skip Limit
+                        mask_state['skip_limit'] -= int(mask_state['skip_map'][program[-1]])
+
+                    if first_ind + mask_state['skip_limit'] + 1 <= input_len:
+                        last_ind = first_ind + 1 + mask_state['skip_limit']
+                    else:
+                        last_ind = input_len
+                        output_mask[self.vocab_word_to_ind(')')] = 1
+                    if last_ind > first_ind:
+                        output_mask[first_ind: last_ind] = 1
+
+                    mask_state['skip_map'] = np.zeros(input_len)
+                    for count, ind in enumerate(range(first_ind, last_ind)):
+                        mask_state['skip_map'][ind] = count
+        except:
+            config.write_log('ERROR', "build mask exception", {'error_message': traceback.format_exc()})
+
+        prog_series = pd.Series(program)
+        validity = pd.Series(index=range(input_len))
+        validity[:] = 0
+        validity.update(prog_series[prog_series<input_len].value_counts())
+
+        if mask_state['comp'] == 'Conjunction' and ((validity>1)*1.0).sum()>1:
+            assert()
+
+        if mask_state['comp'] == 'Composition' and ((validity>1)*1.0).sum()>0:
+            assert ()
+
+        if len(program)>1 and output_mask[self.vocab_word_to_ind(')')] == 1 and \
+                        ((validity==0)*1.0).sum() > config.skip_limit:
+            assert ()
+
+        #if len(program)>1 and output_mask[self.vocab_word_to_ind(')')] == 1 and \
+        #                ((validity>0)*1.0).sum() > input_len-config.skip_limit:
+        #    assert ()
+
+
+
+        return output_mask, mask_state
+
+    def calc_output_mask_naacl18(self, input_variable, program, mask_state):
+        output_lang = self.output_lang
+        output_mask = torch.zeros(config.MAX_LENGTH + output_lang.n_words)
+        input_len = len(input_variable) - 1
+
+        if mask_state is None:
+            mask_state = {'P1': None, 'P2': None, 'state': 0}
+
+        try:
+            # comp or cong
+            if mask_state['state'] == 0:
+                if len(program) > 0:
+                    mask_state['state'] += 1
                 else:
                     output_mask[self.vocab_word_to_ind('Comp(')] = 1
                     output_mask[self.vocab_word_to_ind('Conj(')] = 1
 
             ##### Split1 #######
-            if mask_state['out_mask_state'] == 1:
-                if result[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(result) > 2:
-                    mask_state['out_mask_state'] += 1
+            if mask_state['state'] == 1:
+                if program[-1] == output_lang.word2index[','] + config.MAX_LENGTH and len(program) > 2:
+                    mask_state['state'] += 1
                     if mask_state['comp'] == 'Conjunction':
-                        mask_state['P1'] = result[-2]
+                        mask_state['P1'] = program[-2]
                     else:
-                        mask_state['P2'] = result[-2]
+                        mask_state['P2'] = program[-2]
                 else:
                     #### Model chose Conjunction
-                    if self.vocab_ind_to_word(result[-1]) == 'Conj(':
+                    if self.vocab_ind_to_word(program[-1]) == 'Conj(':
                         mask_state['comp'] = 'Conjunction'
-                        output_mask[0:min(1 + config.skip_limit, input_len)] = 1
+                        output_mask[0] = 1
                     ### Model chose Composition
-                    elif self.vocab_ind_to_word(result[-1]) == 'Comp(':
+                    elif self.vocab_ind_to_word(program[-1]) == 'Comp(':
                         mask_state['comp'] = 'Composition'
                         output_mask[0:input_len] = 1
                     ### Split1, pos > 2
@@ -199,96 +373,96 @@ class WebAsKB_PtrVocabNet_Model():
 
                         if mask_state['comp'] == 'Composition':
                             # Storing P1 value
-                            if self.vocab_ind_to_word(result[-2]) == 'Comp(':
-                                mask_state['P1'] = result[-1]
+                            if self.vocab_ind_to_word(program[-2]) == 'Comp(':
+                                mask_state['P1'] = program[-1]
                             # Only subsequent tokens allowed
-                            if result[-1] < input_len - 1:
-                                output_mask[result[-1] + 1: min(result[-1] + 2 + config.skip_limit, input_len)] = 1
+                            if program[-1] < input_len - 1:
+                                output_mask[program[-1] + 1] = 1
                         else:
                             # we need at least one word in split2, so break before len-1
-                            if result[-1] < input_len - 2:
-                                output_mask[result[-1] + 1: min(result[-1] + 2 + config.skip_limit, input_len - 1)] = 1
+                            if program[-1] < input_len - 2:
+                                output_mask[program[-1] + 1] = 1
 
                         output_mask[self.vocab_word_to_ind(',')] = 1
 
             ##### Split2 #######
-            if mask_state['out_mask_state'] == 2:
+            if mask_state['state'] == 2:
                 ########### Composition ##############
                 if mask_state['comp'] == 'Composition':
-                    if self.vocab_ind_to_word(result[-1]) == ',':
+                    if self.vocab_ind_to_word(program[-1]) == ',':
                         if mask_state['P1'] > 0:
-                            output_mask[0:min(1 + config.skip_limit, mask_state['P1'])] = 1
+                            output_mask[0] = 1
                         else:
                             output_mask[self.vocab_word_to_ind('%composition')] = 1
-                    elif self.vocab_ind_to_word(result[-1]) == '%composition':
+                    elif self.vocab_ind_to_word(program[-1]) == '%composition':
                         if mask_state['P2'] >= input_len - 1:
                             output_mask[self.vocab_word_to_ind(')')] = 1
                         else:
                             output_mask[mask_state['P2'] + 1] = 1
                     else:
-                        if result[-1] == mask_state['P1'] - 1:
+                        if program[-1] == mask_state['P1'] - 1:
                             output_mask[self.vocab_word_to_ind('%composition')] = 1
                         else:
-                            if result[-1] >= input_len - 1:
+                            if program[-1] >= input_len - 1:
                                 output_mask[self.vocab_word_to_ind(')')] = 1
                             else:
-                                output_mask[result[-1] + 1 : min(result[-1] + 2 + config.skip_limit, input_len)] = 1
+                                output_mask[program[-1] + 1] = 1
                 ########### Conjunction ##############
                 else:
                     # conjucntion "P2"
-                    if self.vocab_ind_to_word(result[-1]) == ',':
+                    if self.vocab_ind_to_word(program[-1]) == ',':
                         # all previous split tokens OR first token unused
                         output_mask[1: mask_state['P1'] + 2] = 1
                     else:
                         # P2 used:
-                        if result[-1] <= mask_state['P1']:
+                        if program[-1] <= mask_state['P1']:
                             output_mask[mask_state['P1'] + 1] = 1
-                            mask_state['P2'] = result[-1]
+                            mask_state['P2'] = program[-1]
                         else:
-                            if result[-1] >= input_len - 1:
+                            if program[-1] >= input_len - 1:
                                 output_mask[self.vocab_word_to_ind(')')] = 1
                             else:
-                                output_mask[result[-1] + 1 : min(result[-1] + 2 + config.skip_limit, input_len)] = 1
+                                output_mask[program[-1] + 1] = 1
         except:
             config.write_log('ERROR', "build mask exception", {'error_message': traceback.format_exc()})
 
         return output_mask, mask_state
 
-    def format_model_output(self, pairs_dev, in_model_out_seq, output_dists, output_masks, mask_state, output_prob , skip_ind=None):
-        model_out_seq = in_model_out_seq.copy()
+    def format_model_output(self, pairs_dev, in_program, output_dists, output_masks, mask_state, output_prob , skip_ind=None):
+        program = in_program.copy()
         output_lang = self.output_lang
         input_tokens = [token['dependentGloss'] for token in pairs_dev['aux_data']['sorted_annotations']]
         pointer_ind = []
         seq2seq_output = []
 
 
-        if len(model_out_seq)==0:
+        if len(program)==0:
             raise Exception('format_model_output_error', 'zero len output')
 
         # RL trajectory generation - PATCH (we should generate trajectories by using P(W) not by skipping
         # words after sequence has been generated.
         skip_ind_list = []
         skip_token_list = []
-        if config.gen_trajectories:
+        if False and config.gen_trajectories:
             if skip_ind is None:
                 # randomaly chosing skips
                 while len(skip_ind_list) < config.skip_limit:
-                    skip_ind = random.randint(0, len(model_out_seq) - 1)
-                    if model_out_seq[skip_ind] < len(input_tokens):
+                    skip_ind = random.randint(0, len(program) - 1)
+                    if program[skip_ind] < len(input_tokens):
                         skip_ind_list.append(skip_ind)
-                        skip_token_list.append(input_tokens[model_out_seq[skip_ind]])
-                        del model_out_seq[skip_ind]
+                        skip_token_list.append(input_tokens[program[skip_ind]])
+                        del program[skip_ind]
             else:
                 # skips are given
                 skip_ind_list.append(skip_ind)
-                skip_token_list.append(input_tokens[model_out_seq[skip_ind]])
-                del model_out_seq[skip_ind]
+                skip_token_list.append(input_tokens[program[skip_ind]])
+                del program[skip_ind]
 
-        if model_out_seq[0] == output_lang.word2index['Comp(']+config.MAX_LENGTH:
+        if program[0] == output_lang.word2index['Comp(']+config.MAX_LENGTH:
             comp = 'composition'
             pointer_ind.append(None)
             seq2seq_output.append('Comp(')
-        elif model_out_seq[0] == output_lang.word2index['Conj(']+config.MAX_LENGTH:
+        elif program[0] == output_lang.word2index['Conj(']+config.MAX_LENGTH:
             comp = 'conjunction'
             pointer_ind.append(None)
             seq2seq_output.append('Conj(')
@@ -309,11 +483,11 @@ class WebAsKB_PtrVocabNet_Model():
 
         out_pos = 1
         split_part1_tokens = []
-        while out_pos<len(model_out_seq) and model_out_seq[out_pos] != output_lang.word2index[','] + config.MAX_LENGTH:
-            if model_out_seq[out_pos] >= len(input_tokens):
+        while out_pos<len(program) and program[out_pos] != output_lang.word2index[','] + config.MAX_LENGTH:
+            if program[out_pos] >= len(input_tokens):
                 raise Exception('format_model_output_error', 'illigal value - split1')
-            split_part1_tokens.append(input_tokens[model_out_seq[out_pos]])
-            pointer_ind.append(model_out_seq[out_pos])
+            split_part1_tokens.append(input_tokens[program[out_pos]])
+            pointer_ind.append(program[out_pos])
             seq2seq_output.append('Copy')
             out_pos+=1
 
@@ -323,20 +497,20 @@ class WebAsKB_PtrVocabNet_Model():
         seq2seq_output.append(',')
 
         split_part2_tokens = []
-        while out_pos<len(model_out_seq) and model_out_seq[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
-            if comp == 'composition' and model_out_seq[out_pos] == output_lang.word2index['%composition'] + config.MAX_LENGTH:
+        while out_pos<len(program) and program[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
+            if comp == 'composition' and program[out_pos] == output_lang.word2index['%composition'] + config.MAX_LENGTH:
                 split_part2_tokens.append('%composition')
                 pointer_ind.append(None)
                 seq2seq_output.append('%composition')
             else:
-                if model_out_seq[out_pos] >= len(input_tokens):
+                if program[out_pos] >= len(input_tokens):
                     raise Exception('format_model_output_error', 'illigal value - split2')
-                split_part2_tokens.append(input_tokens[model_out_seq[out_pos]])
-                pointer_ind.append(model_out_seq[out_pos])
+                split_part2_tokens.append(input_tokens[program[out_pos]])
+                pointer_ind.append(program[out_pos])
                 seq2seq_output.append('Copy')
 
                 ### PATCH !!!!
-                #if comp == 'composition' and model_out_seq[out_pos - 1] == output_lang.word2index[
+                #if comp == 'composition' and program[out_pos - 1] == output_lang.word2index[
                 #    '%composition'] + config.MAX_LENGTH:
                 #    split_part1_tokens.append(split_part2_tokens[-1])
                 #    split_part2_tokens = split_part2_tokens[0:-1]
@@ -345,6 +519,8 @@ class WebAsKB_PtrVocabNet_Model():
         pointer_ind.append(None)
         seq2seq_output.append(')')
 
+        
+        
         if len(split_part1_tokens) == 0:
             raise Exception('format_model_output_error', 'split1 len 0')
 
@@ -358,16 +534,21 @@ class WebAsKB_PtrVocabNet_Model():
 
         output = [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
                     'same_comp': int(comp == comp_sup),\
-                    'p1':mask_state['P1'], 'p1_sup': p1_sup, \
-                    'p2':mask_state['P2'], 'p2_sup': p2_sup, \
                     'split_part1': ' '.join(split_part1_tokens), \
                     'split_part2': ' '.join(split_part2_tokens),
                     'question': pairs_dev['aux_data']['question'], \
                     'answers': pairs_dev['aux_data']['answers'], \
                     'sorted_annotations': pairs_dev['aux_data']['sorted_annotations'], \
                     'pointer_ind': pointer_ind, 'seq2seq_output': seq2seq_output, \
-                    'output_seq': model_out_seq, 'skip_ind_list':skip_ind_list,\
+                    'program': program, 'skip_ind_list':skip_ind_list,\
                     'skip_token_list':skip_token_list, 'output_prob':output_prob}]
+
+        if 'skip_limit' in mask_state:
+            output[0].update({'skipped': config.skip_limit - mask_state['skip_limit']})
+
+        if 'P1' in mask_state:
+            output[0].update({'p1':mask_state['P1'], 'p1_sup': p1_sup, \
+                    'p2':mask_state['P2'], 'p2_sup': p2_sup})
 
         if config.SAVE_DISTRIBUTIONS:
             output[0].update({'output_dists': output_dists,\
@@ -408,9 +589,9 @@ class WebAsKB_PtrVocabNet_Model():
         output_mask = None
         output_dist = None
         output_prob = 0
-        mask_state = {'P1': None, 'P2': None, 'out_mask_state': 0}
+        mask_state = None
 
-        di =0
+        di = 0
         while di < config.MAX_LENGTH:
             if config.use_output_masking:
                 output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
@@ -425,21 +606,18 @@ class WebAsKB_PtrVocabNet_Model():
                     loss += self.criterion(decoder_output, target_variable[di])
 
             if config.use_output_masking:
-                if config.sample_output_dist:
-                    masked_distribution = output_dist.data[0].numpy() * output_mask.numpy()
-                    masked_distribution /= masked_distribution.sum()
-                    curr_output = int(np.random.choice(len(masked_distribution), 1, p=masked_distribution)[0])
-                else:
-                    curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
+                curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
             else:
                 curr_output = np.argmax(decoder_output.data)
 
             if DO_TECHER_FORCING:
                 decoder_input = target_variable[di]
+                #if output_mask[target_variable[di].data[0]] != 1:
+                #    assert()
+                result.append(target_variable[di].data[0])
             else:
                 decoder_input = Variable(torch.LongTensor([curr_output]))
-
-            result.append(curr_output)
+                result.append(curr_output)
             output_prob += decoder_output.data[0].numpy()[curr_output]
             output_masks.append(output_mask.int().tolist())
             output_dists.append((output_dist.data[0] * 100).round().int().tolist())
@@ -450,12 +628,91 @@ class WebAsKB_PtrVocabNet_Model():
                 break
 
         output_prob /= len(result)
+        output_prob = np.exp(output_prob)
 
         if type(loss)!=int:
             loss_value = loss.data[0] / target_length
         else:
             loss_value = 0
         return loss_value , result, loss, output_dists, output_masks , mask_state, output_prob
+
+    def traj_sampling_forward(self, input_variable, target_variable, reward = 0, loss=0,  DO_TECHER_FORCING=False):
+        loss_value = 0
+        all_results = []
+        all_output_dists = []
+        all_output_masks = []
+        all_mask_states = []
+        all_output_probs = []
+
+        for traj_num in range(config.traj_per_question):
+            encoder_hidden = self.encoder.initHidden()
+
+            input_length = len(input_variable)
+            target_length = len(target_variable)
+
+            encoder_outputs = Variable(torch.zeros(config.MAX_LENGTH, self.encoder.hidden_size))
+            encoder_outputs = encoder_outputs.cuda() if config.use_cuda else encoder_outputs
+
+            encoder_hiddens = Variable(torch.zeros(config.MAX_LENGTH, self.encoder.hidden_size))
+            encoder_hiddens = encoder_hiddens.cuda() if config.use_cuda else encoder_hiddens
+
+            for ei in range(input_length):
+                encoder_output, encoder_hidden = self.encoder(input_variable[ei], encoder_hidden)
+                encoder_outputs[ei] = encoder_output[0][0]
+                encoder_hiddens[ei] = encoder_hidden[0][0]
+
+            decoder_input = Variable(torch.LongTensor([[config.SOS_token]]))
+            decoder_input = decoder_input.cuda() if config.use_cuda else decoder_input
+
+            decoder_hidden = encoder_hidden
+            result = []
+            output_masks = []
+            output_dists = []
+
+            # Without teacher forcing: use its own predictions as the next input
+            output_prob = 0
+            mask_state = None
+
+            di =0
+            while di < config.MAX_LENGTH:
+                if config.use_output_masking:
+                    output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
+
+                decoder_output, decoder_hidden, output_dist = self.decoder(
+                    decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
+
+                if config.use_output_masking:
+                    uniform = np.ones(len(output_dist.data[0])) / len(output_dist.data[0])
+                    masked_distribution = (output_dist.data[0].numpy() * config.alpha_uni + \
+                                           uniform * (1-config.alpha_uni)) * output_mask.numpy()
+                    masked_distribution /= masked_distribution.sum()
+                    curr_output = int(np.random.choice(len(masked_distribution), 1, p=masked_distribution)[0])
+                else:
+                    curr_output = np.argmax(decoder_output.data)
+
+                decoder_input = Variable(torch.LongTensor([curr_output]))
+
+                result.append(curr_output)
+                output_prob += decoder_output.data[0].numpy()[curr_output]
+                output_masks.append(output_mask.int().tolist())
+                output_dists.append((output_dist.data[0] * 100).round().int().tolist())
+
+                ## EOS or teacher forcing an len> target var
+                di += 1
+                if self.vocab_ind_to_word(curr_output) == ')':
+                    break
+
+            output_prob /= len(result)
+            output_prob = np.exp(output_prob)
+
+            all_results.append(result)
+            all_output_dists.append(output_dists)
+            all_output_masks.append(output_masks)
+            all_mask_states.append(mask_state)
+            all_output_probs.append(output_prob)
+
+
+        return loss_value , all_results, loss, all_output_dists, all_output_masks , all_mask_states, all_output_probs
 
     def beam_search_forward(self, input_variable, target_variable, reward=0, loss=0, DO_TECHER_FORCING=False):
         encoder_hidden = self.encoder.initHidden()
@@ -484,7 +741,7 @@ class WebAsKB_PtrVocabNet_Model():
 
 
         prev_beam = [{'prob':0, 'decoder_input':Variable(torch.LongTensor([[config.SOS_token]])), \
-                      'output':[],'decoder_hidden':encoder_hidden, 'mask_state':{'P1': None, 'P2': None, 'out_mask_state':0}}]
+                      'output':[],'decoder_hidden':encoder_hidden, 'mask_state':{'P1': None, 'P2': None, 'state':0}}]
         final_beam = []
         di = 0
         while di < config.MAX_LENGTH and len(prev_beam)>0:
@@ -492,7 +749,7 @@ class WebAsKB_PtrVocabNet_Model():
             new_beam = []
             for trajectory in prev_beam:
                 if config.use_output_masking:
-                    output_mask ,mask_state = self.calc_output_mask(input_variable, trajectory['output'], trajectory['mask_state'])
+                    output_mask ,mask_state = self.calc_output_mask_naacl18(input_variable, trajectory['output'], trajectory['mask_state'])
 
                 decoder_output, decoder_hidden, output_dist = self.decoder(
                     trajectory['decoder_input'], trajectory['decoder_hidden'], \
@@ -535,7 +792,7 @@ class WebAsKB_PtrVocabNet_Model():
         for trajectory in final_beam:
             result.append(trajectory['output'])
             mask_states.append(trajectory['mask_state'])
-            output_probs.append(trajectory['prob'])
+            output_probs.append(np.exp(trajectory['prob']))
 
         # no loss when computing trajectories
         loss_value = 0

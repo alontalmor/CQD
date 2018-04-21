@@ -47,6 +47,13 @@ elif args.operation == 'run_model':
     ptrnet.load_data(config.noisy_supervision_dir + config.datadir ,'train', config.eval_set)
     ptrnet.init()
     ptrnet.eval()
+elif args.operation == 'sample_trajectories':
+    config.gen_trajectories = True
+    config.sample_output_dist = True
+    ptrnet = WebAsKB_PtrVocabNet()
+    ptrnet.load_data(config.noisy_supervision_dir + config.datadir ,'train', config.eval_set)
+    ptrnet.init()
+    ptrnet.eval()
 
 elif args.operation == 'train_supervised':
     config.PERFORM_TRAINING = True
