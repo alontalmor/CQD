@@ -316,15 +316,15 @@ class WebAsKB_PtrVocabNet_Model():
         validity[:] = 0
         validity.update(prog_series[prog_series<input_len].value_counts())
 
-        if mask_state['comp'] == 'Conjunction' and ((validity>1)*1.0).sum()>1:
-            assert()
+        #if mask_state['comp'] == 'Conjunction' and ((validity>1)*1.0).sum()>1:
+        #    assert()
 
-        if mask_state['comp'] == 'Composition' and ((validity>1)*1.0).sum()>0:
-            assert ()
+        #if mask_state['comp'] == 'Composition' and ((validity>1)*1.0).sum()>0:
+        #    assert ()
 
-        if len(program)>1 and output_mask[self.vocab_word_to_ind(')')] == 1 and \
-                        ((validity==0)*1.0).sum() > config.skip_limit:
-            assert ()
+        #if len(program)>1 and output_mask[self.vocab_word_to_ind(')')] == 1 and \
+        #                ((validity==0)*1.0).sum() > config.skip_limit:
+        #    assert ()
 
         #if len(program)>1 and output_mask[self.vocab_word_to_ind(')')] == 1 and \
         #                ((validity>0)*1.0).sum() > input_len-config.skip_limit:
