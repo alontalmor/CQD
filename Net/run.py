@@ -60,28 +60,28 @@ class NNRun():
                         self.model.forward_func(input_variable, target_variable, reward, loss,
                                                         DO_TECHER_FORCING=teacher_forcing)
 
-                ### PRINT TRAINING STATS ##
-                if self.iteration % config.print_every == 0:
-                    print('--- iteration ' + str(self.iteration) +  ' run-time ' + str(datetime.datetime.now() - self.start) +  ' --------')
-                    config.write_log('INFO', 'Train stats', {'trainset loss': round(self.train_loss / config.print_every, 4) , \
-                                                             'iteration':self.iteration})
-                    self.train_loss = 0
+            ### PRINT TRAINING STATS ##
+            if self.iteration % config.print_every == 0:
+                print('--- iteration ' + str(self.iteration) +  ' run-time ' + str(datetime.datetime.now() - self.start) +  ' --------')
+                config.write_log('INFO', 'Train stats', {'trainset loss': round(self.train_loss / config.print_every, 4) , \
+                                                         'iteration':self.iteration})
+                self.train_loss = 0
 
-                ## EVALUATE MODEL ##
-                if self.iteration % config.evaluate_every == 0:
-                    print('-- Evaluating on devset --- ')
-                    print('prev max adjusted accuracy %.4f' % (self.best_accuracy))
-                    model_output = self.evaluate()
+            ## EVALUATE MODEL ##
+            if self.iteration % config.evaluate_every == 0:
+                print('-- Evaluating on devset --- ')
+                print('prev max adjusted accuracy %.4f' % (self.best_accuracy))
+                model_output = self.evaluate()
 
-                    if self.best_accuracy + 0.001 < self.curr_accuracy or config.always_save_model:
-                        print('saving model')
-                        self.model.save_model('_' + str(self.iteration))
+                if self.best_accuracy + 0.001 < self.curr_accuracy or config.always_save_model:
+                    print('saving model')
+                    self.model.save_model('_' + str(self.iteration))
 
-                        config.store_json(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
-                        config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
+                    config.store_json(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
+                    config.store_csv(model_output, config.split_points_dir + config.out_subdir, config.eval_set + '_' + str(self.iteration))
 
-                        self.best_accuracy = self.curr_accuracy
-                        self.best_accuracy_iter = self.iteration
+                    self.best_accuracy = self.curr_accuracy
+                    self.best_accuracy_iter = self.iteration
 
             # computing gradients (update is always per Example, so all RL trajectories are summed before step)
             if self.iteration % config.MINI_BATCH_SIZE == 0:

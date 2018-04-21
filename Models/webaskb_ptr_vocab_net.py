@@ -180,7 +180,8 @@ class WebAsKB_PtrVocabNet_Model():
         # Init
         if mask_state is None:
             mask_state = {'state':'init','split1_inds':[],'split2_inds':[], 'skip_map':np.zeros(input_len), \
-                          'skip_limit':config.skip_limit,'%composition_found':False, 'comp':None ,'skip_to_%composition':0}
+                          'skip_limit':config.skip_limit,'%composition_found':False, 'comp':None , \
+                          'skip_ind_list':[], 'skip_to_%composition':0}
 
         try:
             # comp or cong
@@ -329,8 +330,8 @@ class WebAsKB_PtrVocabNet_Model():
         #if len(program)>1 and output_mask[self.vocab_word_to_ind(')')] == 1 and \
         #                ((validity>0)*1.0).sum() > input_len-config.skip_limit:
         #    assert ()
-
-
+        if len(program) > 1 and program[-1] == self.vocab_word_to_ind(')'):
+            mask_state['skip_ind_list'] += list(validity[validity==0].index)
 
         return output_mask, mask_state
 
@@ -441,22 +442,25 @@ class WebAsKB_PtrVocabNet_Model():
 
         # RL trajectory generation - PATCH (we should generate trajectories by using P(W) not by skipping
         # words after sequence has been generated.
-        skip_ind_list = []
+        #skip_ind_list = []
         skip_token_list = []
-        if False and config.gen_trajectories:
-            if skip_ind is None:
-                # randomaly chosing skips
-                while len(skip_ind_list) < config.skip_limit:
-                    skip_ind = random.randint(0, len(program) - 1)
-                    if program[skip_ind] < len(input_tokens):
-                        skip_ind_list.append(skip_ind)
-                        skip_token_list.append(input_tokens[program[skip_ind]])
-                        del program[skip_ind]
-            else:
-                # skips are given
-                skip_ind_list.append(skip_ind)
-                skip_token_list.append(input_tokens[program[skip_ind]])
-                del program[skip_ind]
+        #if False and config.gen_trajectories:
+        #    if skip_ind is None:
+        #        # randomaly chosing skips
+        #        while len(skip_ind_list) < config.skip_limit:
+        #            skip_ind = random.randint(0, len(program) - 1)
+        #            if program[skip_ind] < len(input_tokens):
+        #                skip_ind_list.append(skip_ind)
+        #                skip_token_list.append(input_tokens[program[skip_ind]])
+        #                del program[skip_ind]
+        #    else:
+        #        # skips are given
+        #        skip_ind_list.append(skip_ind)
+        #        skip_token_list.append(input_tokens[program[skip_ind]])
+        #        del program[skip_ind]
+
+        for skip_ind in mask_state['skip_ind_list']:
+            skip_token_list.append(input_tokens[skip_ind])
 
         if program[0] == output_lang.word2index['Comp(']+config.MAX_LENGTH:
             comp = 'composition'
@@ -540,7 +544,7 @@ class WebAsKB_PtrVocabNet_Model():
                     'answers': pairs_dev['aux_data']['answers'], \
                     'sorted_annotations': pairs_dev['aux_data']['sorted_annotations'], \
                     'pointer_ind': pointer_ind, 'seq2seq_output': seq2seq_output, \
-                    'program': program, 'skip_ind_list':skip_ind_list,\
+                    'program': program, 'skip_ind_list':mask_state['skip_ind_list'],\
                     'skip_token_list':skip_token_list, 'output_prob':output_prob}]
 
         if 'skip_limit' in mask_state:
@@ -625,6 +629,9 @@ class WebAsKB_PtrVocabNet_Model():
             ## EOS or teacher forcing an len> target var
             di += 1
             if self.vocab_ind_to_word(curr_output) == ')' or (DO_TECHER_FORCING and di >= len(target_variable)):
+                # last masking (updating mask state with last program token)
+                if config.use_output_masking:
+                    output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
                 break
 
         output_prob /= len(result)
@@ -700,6 +707,9 @@ class WebAsKB_PtrVocabNet_Model():
                 ## EOS or teacher forcing an len> target var
                 di += 1
                 if self.vocab_ind_to_word(curr_output) == ')':
+                    # last masking (updating mask state with last program token)
+                    if config.use_output_masking:
+                        output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
                     break
 
             output_prob /= len(result)
