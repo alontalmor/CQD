@@ -275,7 +275,7 @@ class Config:
 
         zipfilename = filename
         if zipfilename.find('.zip') == -1:
-            zipfilename + '.zip'
+            zipfilename += '.zip'
 
         if filename.find('.zip') > -1:
             filename = filename.replace('.zip','')
