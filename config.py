@@ -122,6 +122,7 @@ class Config:
         self.RL_Training = False
 
         self.reward_sub_mean = False
+        self.devide_by_traj_num = False
 
         self.MIN_REWARD_TRESH = 0.1
 

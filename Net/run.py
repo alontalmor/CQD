@@ -46,6 +46,9 @@ class NNRun():
                     if len(rewards)>1:
                         rewards -= rewards.mean()
 
+                if config.devide_by_traj_num:
+                    rewards /= len(rewards)
+
             # assuming rewards are normalized per question, running all question trajectories sequentially
             for ind,chosen_ind in enumerate(example_traj_inds):
                 #chosen_ind = random.choice(self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]])
