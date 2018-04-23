@@ -56,7 +56,9 @@ class WebAsKB_PtrVocabNet():
             y=[]
             # if supervision is nan don't add a y target variable ( happens in comperative and superlative or dev set)
             if 'output_seq' in question and question['output_seq'] == question['output_seq']:
-                y = question['output_seq'] # RL training, always take the actual trajectory as target.
+                y = question['output_seq']
+            elif 'program' in question and question['program'] == question['program']:
+                y = question['program']# RL training, always take the actual trajectory as target.
             else:
                 if question['pointer_ind'] == question['pointer_ind']:
                     for pointer_ind, seq2seq_output in zip(question['pointer_ind'], question['seq2seq_output']):
@@ -122,8 +124,8 @@ class WebAsKB_PtrVocabNet():
             print('pre-processing the following files: ' +   str(filenames))
 
             # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
-            filenames.remove('noisy_sup.json.zip')
-            filenames = ['noisy_sup.json.zip'] + filenames
+            #filenames.remove('noisy_sup.json.zip')
+            #filenames = ['noisy_sup.json.zip'] + filenames
 
             for filename in filenames:
                 if filename.find('.json')>-1:
