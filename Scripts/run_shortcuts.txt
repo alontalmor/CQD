@@ -10,7 +10,7 @@ preproc_RL --name rl_cascade1_epoch0-3 --datadir rl_cascade1_epoch0-3 --eval_set
 train_RL --name rl_cascade0_epoch1 --datadir rl_cascade0_epoch1 --modeldir ptr_vocab --eval_set dev --evaluate_every 3000 --MAX_ITER 100000
 train_RL --name rl_cascade0_epoch2 --datadir rl_cascade0_epoch2 --modeldir rl_cascade0_epoch1 --eval_set dev --evaluate_every 5000 --MAX_ITER 100000
 train_RL --name rl_cascade1_epoch0 --datadir rl_cascade1_epoch0 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1
-train_RL --name rl_cascade1_epoch0-5 --datadir rl_cascade1_epoch0-3 --modeldir rl_cascade0_epoch2 --eval_set dev --max_evalset_size 100 --evaluate_every 100 --MAX_ITER 100000 --skip_limit 1
+train_RL --name rl_cascade1_epoch0-5 --datadir rl_cascade1_epoch0-3 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --reward_sub_mean
 
 train_RL --name rl_1skip_full --datadir rl_1skip_full --modeldir rl_1skip_full --eval_set dev
 

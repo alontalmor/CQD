@@ -56,7 +56,7 @@ class NNRun():
 
                 reward = None
                 if config.RL_Training:
-                    reward = rewards[ind]
+                    reward = float(rewards[ind])
 
                 # Teacher forcing
                 if config.use_teacher_forcing and self.iteration < config.teacher_forcing_full_until:
