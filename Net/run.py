@@ -36,8 +36,18 @@ class NNRun():
             # question number choice is not randomized (order of question was already randomized)
             chosen_question = self.iteration %  len(self.pairs_trian_index)
 
+            example_traj_inds = self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]]
+
+            # normalizing rewards
+            if config.RL_Training:
+                rewards = pd.Series([self.pairs_train[ind]['aux_data']['Reward_MRR'] for ind in example_traj_inds])
+
+                if config.reward_sub_mean:
+                    if len(rewards)>1:
+                        rewards -= rewards.mean()
+
             # assuming rewards are normalized per question, running all question trajectories sequentially
-            for chosen_ind in self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]]:
+            for ind,chosen_ind in enumerate(example_traj_inds):
                 #chosen_ind = random.choice(self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]])
 
                 training_pair = self.pairs_train[chosen_ind]
@@ -46,7 +56,7 @@ class NNRun():
 
                 reward = None
                 if config.RL_Training:
-                    reward = training_pair['aux_data']['Reward_MRR']
+                    reward = rewards[ind]
 
                 # Teacher forcing
                 if config.use_teacher_forcing and self.iteration < config.teacher_forcing_full_until:

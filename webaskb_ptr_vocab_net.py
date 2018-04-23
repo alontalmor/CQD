@@ -162,14 +162,14 @@ class WebAsKB_PtrVocabNet():
         print('# rewards above tresh: {:}'.format(((rl_input_df['Reward_MRR'] > config.MIN_REWARD_TRESH) * 1.0).sum()))
         print('# rewards equal tresh: {:}'.format(((rl_input_df['Reward_MRR'] == config.MIN_REWARD_TRESH) * 1.0).sum()))
 
-        def normalize(data):
+        #def normalize(data):
             #x = data['Reward_MRR'].as_matrix()
             #e_x = np.exp(x)
             #data['Reward_MRR'] = e_x / e_x.sum(axis=0)
             #data['Reward_MRR'] -= data['Reward_MRR'].mean()
-            data['Reward_MRR'] /= len(data['Reward_MRR'])
-            return data
-        rl_input_df = rl_input_df.groupby('ID').apply(normalize)
+        #    data['Reward_MRR'] /= len(data['Reward_MRR'])
+        #    return data
+        #rl_input_df = rl_input_df.groupby('ID').apply(normalize)
         print('Processing time: ' + str(datetime.datetime.now() - start))
         print('Total number of stored samples: ' + str(len(rl_input_df)))
 

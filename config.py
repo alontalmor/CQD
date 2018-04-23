@@ -121,6 +121,8 @@ class Config:
         #####  Reinforcement Learning #######
         self.RL_Training = False
 
+        self.reward_sub_mean = False
+
         self.MIN_REWARD_TRESH = 0.1
 
         #  data generation
