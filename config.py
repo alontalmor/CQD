@@ -62,9 +62,9 @@ class Config:
         self.MAX_LENGTH = 28
         self.EMBEDDING_VEC_SIZE = 50
         self.grad_clip_value = None
-        self.epsilon_greedy = 0.1
+        self.epsilon_greedy = 0
 
-        self.print_all_grad = True
+        self.print_all_grad = False
         self.print_every = 1000
         self.evaluate_every = 3000
         self.evalset_offset = 0
