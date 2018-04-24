@@ -595,6 +595,8 @@ class WebAsKB_PtrVocabNet_Model():
         output_prob = 0
         mask_state = None
 
+
+
         di = 0
         while di < config.MAX_LENGTH:
             if config.use_output_masking:
@@ -602,6 +604,9 @@ class WebAsKB_PtrVocabNet_Model():
 
             decoder_output, decoder_hidden, output_dist = self.decoder(
                 decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
+
+            ## DEBUGING
+            #decoder_output.register_hook(print)
 
             if di<len(target_variable):
                 if config.RL_Training:

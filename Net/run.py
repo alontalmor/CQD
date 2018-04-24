@@ -60,6 +60,8 @@ class NNRun():
                 reward = None
                 if config.RL_Training:
                     reward = float(rewards[ind])
+                    if reward == 0:
+                        continue
 
                 # Teacher forcing
                 if config.use_teacher_forcing and self.iteration < config.teacher_forcing_full_until:
@@ -102,7 +104,29 @@ class NNRun():
 
                 loss.backward()
 
+                if config.print_all_grad:
+                    for p in filter(lambda p: p.grad is not None, self.model.encoder.parameters()):
+                        print(p.grad.data.abs().max())
+                    for p in filter(lambda p: p.grad is not None, self.model.decoder.parameters()):
+                        print(p.grad.data.abs().max())
+
+                if config.grad_clip_value is not None:
+                    for p in filter(lambda p: p.grad is not None, self.model.encoder.parameters()):
+                        p.grad.data.clamp_(min=-config.grad_clip_value, max=config.grad_clip_value)
+                    for p in filter(lambda p: p.grad is not None, self.model.decoder.parameters()):
+                        p.grad.data.clamp_(min=-config.grad_clip_value, max=config.grad_clip_value)
+
+                #torch.nn.utils.clip_grad_value_(self.model.encoder.parameters(), 1)
+                #torch.nn.utils.clip_grad_value_(self.model.decoder.parameters(), 1)
+
+
+
                 self.model.optimizer_step()
+
+                print(self.iteration)
+                #print(self.model.decoder.out.weight.abs().max())
+                #print(self.model.encoder.GRU.weight_hh_l0.abs().max())
+                #print(self.model.encoder.GRU.weight_ih_l0.abs().max())
 
                 loss = 0
 

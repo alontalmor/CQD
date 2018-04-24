@@ -28,7 +28,7 @@ sample_trajectories --name rl_cascade0_epoch1_sample --modeldir rl_cascade0_epoc
 sample_trajectories --name rl_cascade0_epoch2_1skip_traj_sample --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 2 --skip_limit 1
 sample_trajectories --name rl_cascade0_epoch2_1skip_sample --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1
 
-sample_trajectories --name rl_cascade0_epoch2_1skip_sample --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1 --generate_all_skips
+sample_trajectories --name rl_cascade0_epoch2_1skip_sample2 --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1 --generate_all_skips
 
 rl_cascade0_epoch1
 #1 sample ptr_vocab ( data dir noisy supervision)

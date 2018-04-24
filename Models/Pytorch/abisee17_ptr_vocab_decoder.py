@@ -62,6 +62,7 @@ class AttnDecoderRNN(nn.Module):
         # NOTE!! we should use decoder input not decoder_input_embedded
         Pgen = self.sigmoid(self.pgen_linear(torch.cat((attn_applied[0], decoder_hidden[0] , decoder_input_embedded[0]), 1)))
 
+
         #if output_mask is not None:
         #    input_dist = F.softmax(attn_weights[0] - output_mask[0:self.max_length])
         #    vocab_dist = F.softmax(self.out(output[0]) - output_mask[self.max_length:])
@@ -77,7 +78,14 @@ class AttnDecoderRNN(nn.Module):
         #                                Variable(torch.ones(self.output_size), requires_grad = False).view(1,-1) * -100), 1)
         #else:
         output_distribution = torch.cat(((1 - Pgen) * input_dist , Pgen * vocab_dist) , 1)
+
+        #output_distribution.register_hook(print)
+        #print(output_distribution.data[0].min())
+        uniform = Variable(torch.FloatTensor(np.ones(self.output_size + self.max_length) / \
+                                             (self.output_size + self.max_length)), requires_grad=False)
+        output_distribution = output_distribution * (1 - config.epsilon_greedy) + uniform * config.epsilon_greedy
         softmax_output = torch.log(output_distribution)
+
         # WRONG - experimenting. ..
         #softmax_output = F.log_softmax(torch.cat(((1 - Pgen) * attn_weights, Pgen * self.out(output[0])), 1))
 
