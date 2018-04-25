@@ -45,6 +45,7 @@ class NNRun():
                 if config.reward_sub_mean:
                     if len(rewards)>1:
                         rewards -= rewards.mean()
+                        rewards += config.MIN_REWARD_TRESH / len(rewards)
 
                 if config.devide_by_traj_num:
                     rewards /= len(rewards)

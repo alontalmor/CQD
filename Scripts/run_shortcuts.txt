@@ -10,7 +10,7 @@ preproc_RL --name rl_cascade1_epoch0-4 --datadir rl_cascade1_epoch0-4 --eval_set
 train_RL --name rl_cascade0_epoch1 --datadir rl_cascade0_epoch1 --modeldir ptr_vocab --eval_set dev --evaluate_every 3000 --MAX_ITER 100000
 train_RL --name rl_cascade0_epoch2 --datadir rl_cascade0_epoch2 --modeldir rl_cascade0_epoch1 --eval_set dev --evaluate_every 5000 --MAX_ITER 100000
 train_RL --name rl_cascade1_epoch0 --datadir rl_cascade1_epoch0 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1
-train_RL --name rl_cascade1_epoch0-5 --datadir rl_cascade1_epoch0-3 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --max_margin_rl --epsilon_greedy 0.1
+train_RL --name rl_cascade1_epoch0-5 --datadir rl_cascade1_epoch0-4 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --max_margin_rl --epsilon_greedy 0.1
 
 train_RL --name rl_1skip_full --datadir rl_1skip_full --modeldir rl_1skip_full --eval_set dev
 
@@ -25,10 +25,7 @@ run_model --name test --modeldir ptr_vocab --eval_set dev --max_evalset_size 100
 # output sampling
 sample_trajectories --name rl_cascade0_epoch0_sample --modeldir rl_cascade0_epoch0 --eval_set train --traj_per_question 2
 sample_trajectories --name rl_cascade0_epoch1_sample --modeldir rl_cascade0_epoch1 --eval_set train --traj_per_question 2
-sample_trajectories --name rl_cascade0_epoch2_1skip_traj_sample --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 2 --skip_limit 1
-sample_trajectories --name rl_cascade0_epoch2_1skip_sample --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1
-
-sample_trajectories --name rl_cascade0_epoch2_1skip_sample2 --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1 --generate_all_skips
+sample_trajectories --name rl_cascade0_epoch2_1skip_traj_sample3 --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1 --skip_limit 1 --random_seed 3
 
 rl_cascade0_epoch1
 #1 sample ptr_vocab ( data dir noisy supervision)
