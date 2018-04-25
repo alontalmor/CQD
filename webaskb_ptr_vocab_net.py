@@ -124,8 +124,9 @@ class WebAsKB_PtrVocabNet():
             print('pre-processing the following files: ' +   str(filenames))
 
             # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
-            #filenames.remove('noisy_sup.json.zip')
-            #filenames = ['noisy_sup.json.zip'] + filenames
+            if 'noisy_sup.json.zip' in filenames:
+                filenames.remove('noisy_sup.json.zip')
+                filenames = ['noisy_sup.json.zip'] + filenames
 
             for filename in filenames:
                 if filename.find('.json')>-1:
