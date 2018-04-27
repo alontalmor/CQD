@@ -17,13 +17,15 @@ This model was trained on the dataset [ComplexWebQuestions](http://nlp.cs.tau.ac
 2.  Change your directory to where you cloned the files:
 
     ```
-    cd webaskb
+    cd webkb_dev
     ```
 
 3.  Create a virtual environment with Python 3.6:
 
     ```
     virtualenv -p python3 venv
+    python3.6 -m venv venv
+
     ```
 
 4.  Activate the virtual environment. You will need to activate the venv environment in each terminal in which you want to use WebAsKB.

@@ -43,10 +43,27 @@ if args.operation == 'gen_noisy_sup':
     noisy_sup = NoisySupervision()
     noisy_sup.gen_noisy_supervision()
 elif args.operation == 'run_model':
-    ptrnet = WebAsKB_PtrVocabNet()
-    ptrnet.load_data(config.noisy_supervision_dir + config.datadir ,'train', config.eval_set)
-    ptrnet.init()
-    ptrnet.eval()
+    if config.parent_data_dir == '':
+        config.parent_data_dir = config.noisy_supervision_dir
+    else:
+        config.parent_data_dir = config.base_dir + config.parent_data_dir + '/'
+
+    if config.eval_set == '*':
+        for dirname, dirnames, filenames in os.walk(config.parent_data_dir + config.datadir):
+            for filename in filenames:
+                if filename.find('json.zip') > -1:
+                    print('running on' + filename)
+                    config.eval_set = filename
+                    ptrnet = WebAsKB_PtrVocabNet()
+                    ptrnet.load_data(config.parent_data_dir + config.datadir, '', config.eval_set)
+                    ptrnet.init()
+                    ptrnet.eval()
+    else:
+        ptrnet = WebAsKB_PtrVocabNet()
+        ptrnet.load_data(config.parent_data_dir + config.datadir ,'', config.eval_set)
+        ptrnet.init()
+        ptrnet.eval()
+
 elif args.operation == 'sample_trajectories':
     config.gen_trajectories = True
     config.sample_output_dist = True

@@ -429,12 +429,11 @@ class WebAsKB_PtrVocabNet_Model():
 
         return output_mask, mask_state
 
-    def format_model_output(self, pairs_dev, in_program, output_dists, output_masks, mask_state, output_prob , skip_ind=None):
+    def format_model_output(self, pairs_dev, in_program, output_dists, output_masks, mask_state, model_prob , skip_ind=None):
         program = in_program.copy()
+        program_tokens = []
         output_lang = self.output_lang
         input_tokens = [token['dependentGloss'] for token in pairs_dev['aux_data']['sorted_annotations']]
-        pointer_ind = []
-        seq2seq_output = []
 
 
         if len(program)==0:
@@ -464,12 +463,10 @@ class WebAsKB_PtrVocabNet_Model():
 
         if program[0] == output_lang.word2index['Comp(']+config.MAX_LENGTH:
             comp = 'composition'
-            pointer_ind.append(None)
-            seq2seq_output.append('Comp(')
+            program_tokens.append('Comp(')
         elif program[0] == output_lang.word2index['Conj(']+config.MAX_LENGTH:
             comp = 'conjunction'
-            pointer_ind.append(None)
-            seq2seq_output.append('Conj(')
+            program_tokens.append('Conj(')
         else:
             raise Exception('format_model_output_error', 'bad compositionality type')
 
@@ -482,8 +479,9 @@ class WebAsKB_PtrVocabNet_Model():
         else:
             comp_sup = ''
 
-        p1_sup = pairs_dev['aux_data']['p1']
-        p2_sup = pairs_dev['aux_data']['p2']
+        if 'p1' in pairs_dev['aux_data']:
+            p1_sup = pairs_dev['aux_data']['p1']
+            p2_sup = pairs_dev['aux_data']['p2']
 
         out_pos = 1
         split_part1_tokens = []
@@ -491,27 +489,23 @@ class WebAsKB_PtrVocabNet_Model():
             if program[out_pos] >= len(input_tokens):
                 raise Exception('format_model_output_error', 'illigal value - split1')
             split_part1_tokens.append(input_tokens[program[out_pos]])
-            pointer_ind.append(program[out_pos])
-            seq2seq_output.append('Copy')
+            program_tokens.append(input_tokens[program[out_pos]])
             out_pos+=1
 
         # skip the ','
         out_pos += 1
-        pointer_ind.append(None)
-        seq2seq_output.append(',')
+        program_tokens.append(',')
 
         split_part2_tokens = []
         while out_pos<len(program) and program[out_pos] != output_lang.word2index[')'] + config.MAX_LENGTH:
             if comp == 'composition' and program[out_pos] == output_lang.word2index['%composition'] + config.MAX_LENGTH:
                 split_part2_tokens.append('%composition')
-                pointer_ind.append(None)
-                seq2seq_output.append('%composition')
+                program_tokens.append('%composition')
             else:
                 if program[out_pos] >= len(input_tokens):
                     raise Exception('format_model_output_error', 'illigal value - split2')
                 split_part2_tokens.append(input_tokens[program[out_pos]])
-                pointer_ind.append(program[out_pos])
-                seq2seq_output.append('Copy')
+                program_tokens.append(input_tokens[program[out_pos]])
 
                 ### PATCH !!!!
                 #if comp == 'composition' and program[out_pos - 1] == output_lang.word2index[
@@ -520,10 +514,7 @@ class WebAsKB_PtrVocabNet_Model():
                 #    split_part2_tokens = split_part2_tokens[0:-1]
             out_pos+=1
 
-        pointer_ind.append(None)
-        seq2seq_output.append(')')
-
-        
+        program_tokens.append(')')
         
         if len(split_part1_tokens) == 0:
             raise Exception('format_model_output_error', 'split1 len 0')
@@ -536,23 +527,29 @@ class WebAsKB_PtrVocabNet_Model():
             raise Exception('format_model_output_error', 'no %composition in split2')
 
 
-        output = [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp, 'comp_sup': comp_sup,
-                    'same_comp': int(comp == comp_sup),\
+        output = [{'ID': pairs_dev['aux_data']['ID'], 'comp': comp,
                     'split_part1': ' '.join(split_part1_tokens), \
                     'split_part2': ' '.join(split_part2_tokens),
-                    'question': pairs_dev['aux_data']['question'], \
+                    'input_tokens': input_tokens, \
+                    'input_len': len(input_tokens), \
                     'answers': pairs_dev['aux_data']['answers'], \
-                    'sorted_annotations': pairs_dev['aux_data']['sorted_annotations'], \
-                    'pointer_ind': pointer_ind, 'seq2seq_output': seq2seq_output, \
-                    'program': program, 'skip_ind_list':mask_state['skip_ind_list'],\
-                    'skip_token_list':skip_token_list, 'output_prob':output_prob}]
+                    'question': pairs_dev['aux_data']['question'], \
+                    'sorted_annotations': [{'dep':a['dep'],'dependentGloss':a['dependentGloss']} \
+                                           for a in pairs_dev['aux_data']['sorted_annotations']],\
+                    'program': program, \
+                    'program_tokens': program_tokens, \
+                    'output_len': len(program), \
+                    'model_prob':model_prob}]
 
         if 'skip_limit' in mask_state:
-            output[0].update({'skipped': config.skip_limit - mask_state['skip_limit']})
+            output[0].update({'skipped': config.skip_limit - mask_state['skip_limit'], \
+                              'skip_ind_list': mask_state['skip_ind_list'], \
+                              'skip_token_list': skip_token_list
+                              })
 
         if 'P1' in mask_state:
             output[0].update({'p1':mask_state['P1'], 'p1_sup': p1_sup, \
-                    'p2':mask_state['P2'], 'p2_sup': p2_sup})
+                    'p2':mask_state['P2'], 'p2_sup': p2_sup, 'comp_sup': comp_sup})
 
         if config.SAVE_DISTRIBUTIONS:
             output[0].update({'output_dists': output_dists,\
@@ -595,8 +592,6 @@ class WebAsKB_PtrVocabNet_Model():
         output_prob = 0
         mask_state = None
 
-
-
         di = 0
         while di < config.MAX_LENGTH:
             if config.use_output_masking:
@@ -638,9 +633,6 @@ class WebAsKB_PtrVocabNet_Model():
                 if config.use_output_masking:
                     output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
                 break
-
-        output_prob /= len(result)
-        output_prob = np.exp(output_prob)
 
         if type(loss)!=int:
             loss_value = loss.data[0] / target_length
@@ -716,9 +708,6 @@ class WebAsKB_PtrVocabNet_Model():
                     if config.use_output_masking:
                         output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
                     break
-
-            output_prob /= len(result)
-            output_prob = np.exp(output_prob)
 
             all_results.append(result)
             all_output_dists.append(output_dists)

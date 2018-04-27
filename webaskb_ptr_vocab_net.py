@@ -42,7 +42,7 @@ class WebAsKB_PtrVocabNet():
             y = []
             aux_data = question
 
-            if len(question['sorted_annotations'])>config.MAX_LENGTH-4:
+            if question['sorted_annotations'] != question['sorted_annotations'] or len(question['sorted_annotations'])>config.MAX_LENGTH-4:
                 continue
 
             for token in question['sorted_annotations']:
@@ -97,19 +97,24 @@ class WebAsKB_PtrVocabNet():
             self.input_lang = None
             self.output_lang = None
 
-        noisy_sup_train = config.load_json(data_dir, train_file)
-        noisy_sup_eval = config.load_json(data_dir, eval_file)
+
 
         # we always read the training data - to create the language index in the same order.
         # if model is loaded, input lang will be loaded as well, dev first so we always get the same dev ramdom sample (for same
         # max_evalset_size)
+        noisy_sup_eval = config.load_json(data_dir, eval_file)
         self.input_lang, self.output_lang, self.pairs_dev, pairs_dev_index = \
             self.prepareData(noisy_sup_eval, is_training_set=False, input_lang=self.input_lang, \
                              output_lang=self.output_lang)
 
-        self.input_lang, self.output_lang, self.pairs_train, self.pairs_trian_index = \
-            self.prepareData(noisy_sup_train,is_training_set=True , input_lang=self.input_lang, \
-                            output_lang=self.output_lang)
+        if train_file != '':
+            noisy_sup_train = config.load_json(data_dir, train_file)
+            self.input_lang, self.output_lang, self.pairs_train, self.pairs_trian_index = \
+                self.prepareData(noisy_sup_train,is_training_set=True , input_lang=self.input_lang, \
+                                output_lang=self.output_lang)
+        else:
+            self.pairs_train = []
+            self.pairs_trian_index = []
 
 
         # saving language model (only input, output should be always the same)
@@ -132,7 +137,7 @@ class WebAsKB_PtrVocabNet():
                 if filename.find('.json')>-1:
                     curr_batch = pd.DataFrame(config.load_json(config.rl_train_data + config.datadir,filename))
                     curr_batch = curr_batch[(curr_batch[['split_part1', 'split_part2']].isnull() * 1.0).sum(axis=1) == 0] # removing null values
-                    curr_batch['traj_id'] = curr_batch['ID'] + curr_batch['split_part1'].str.replace(" ","") \
+                    curr_batch['traj_id'] = curr_batch['ID'] + curr_batch['comp'] + curr_batch['split_part1'].str.replace(" ","") \
                                             + ',' + curr_batch['split_part2'].str.replace(" ","")
                     if len(rl_input_df)>0:
                         len_before_filter = len(curr_batch)
@@ -145,20 +150,32 @@ class WebAsKB_PtrVocabNet():
         start = datetime.datetime.now()
 
         # dropping exact duplicate splits
+        print('size before drop dups: ' + str(len(rl_input_df)))
         rl_input_df = rl_input_df.drop_duplicates(['ID', 'comp', 'split_part1', 'split_part2'])
+        print('size after drop dups: ' + str(len(rl_input_df)))
 
         print('# rewards below tresh: {:}'.format((((rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH) & \
                                                     (rl_input_df['Reward_MRR'] > 0)) * 1.0).sum()))
 
         # all cases of reward under tresh will be zero
-        rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
+        #rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
+
+
+        # in questions with all rewards zero
+        print('Dropping examples with all zero eward')
+        best_result_per_example = rl_input_df.groupby('ID')['Reward_MRR'].max()
+        zero_mrr_examples = best_result_per_example[best_result_per_example==0]
+        rl_input_df = rl_input_df[~rl_input_df['ID'].isin(zero_mrr_examples.index)]
+
 
         # all noisy supervision samples recieve reward of 0.1 if there previous reward is 0
-        rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json.zip') & \
-                        (rl_input_df['Reward_MRR'] == 0)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
+        #rl_input_df.loc[((rl_input_df['filename'] == 'noisy_sup.json.zip') & \
+        #                (rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
 
         # filtering zeros
-        rl_input_df = rl_input_df[rl_input_df['Reward_MRR'] != 0]
+        #rl_input_df = rl_input_df[rl_input_df['Reward_MRR'] != 0]
+
+
 
         print('# rewards above tresh: {:}'.format(((rl_input_df['Reward_MRR'] > config.MIN_REWARD_TRESH) * 1.0).sum()))
         print('# rewards equal tresh: {:}'.format(((rl_input_df['Reward_MRR'] == config.MIN_REWARD_TRESH) * 1.0).sum()))
@@ -171,6 +188,7 @@ class WebAsKB_PtrVocabNet():
         #    data['Reward_MRR'] /= len(data['Reward_MRR'])
         #    return data
         #rl_input_df = rl_input_df.groupby('ID').apply(normalize)
+
         print('Processing time: ' + str(datetime.datetime.now() - start))
         print('Total number of stored samples: ' + str(len(rl_input_df)))
 

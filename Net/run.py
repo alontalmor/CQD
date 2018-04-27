@@ -41,11 +41,13 @@ class NNRun():
             # normalizing rewards
             if config.RL_Training:
                 rewards = pd.Series([self.pairs_train[ind]['aux_data']['Reward_MRR'] for ind in example_traj_inds])
+                model_probs = np.exp(pd.Series([self.pairs_train[ind]['aux_data']['model_prob'] for ind in example_traj_inds]))
 
                 if config.reward_sub_mean:
                     if len(rewards)>1:
-                        rewards -= rewards.mean()
-                        rewards += config.MIN_REWARD_TRESH / len(rewards)
+                        # sub weighted average of traj model prob * reward
+                        rewards -= (model_probs * rewards).sum() / model_probs.sum()
+                        #rewards += config.MIN_REWARD_TRESH / len(rewards)
 
                 if config.devide_by_traj_num:
                     rewards /= len(rewards)
@@ -155,7 +157,7 @@ class NNRun():
             testing_pair = pairs_dev[test_iter]
 
             test_loss , output_seq, loss, output_dists, output_masks, mask_state, output_prob  = \
-                self.model.forward_func(testing_pair['x'], testing_pair['y'])
+                self.model.forward_func(testing_pair['x'], testing_pair['y'],DO_TECHER_FORCING=config.test_teacher_forcing)
             self.test_loss += test_loss
 
             # generating model output

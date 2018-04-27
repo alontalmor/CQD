@@ -50,6 +50,7 @@ class Config:
         self.out_subdir = 'test/'
         self.datadir = ''
         self.modeldir = ''
+        self.parent_data_dir = ''
 
         self.store_as_csv = False
 
@@ -74,6 +75,7 @@ class Config:
         self.output_size = 29
 
         self.use_teacher_forcing = True
+        self.test_teacher_forcing = False
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
 
