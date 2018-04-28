@@ -28,7 +28,7 @@ class WebAsKB_PtrVocabNet():
         print("Read %s sentence pairs" % len(split_dataset))
         print("Counting words...")
 
-        #split_dataset = [split_dataset[i] for i in  np.random.permutation(len(split_dataset))]
+        split_dataset = [split_dataset[i] for i in  np.random.permutation(len(split_dataset))]
 
         input_lang.addWord('None')
         pairs = []
@@ -152,6 +152,8 @@ class WebAsKB_PtrVocabNet():
 
         start = datetime.datetime.now()
 
+        rl_input_df = rl_input_df.set_index('traj_id')
+
         # dropping exact duplicate splits
         print('size before drop dups: ' + str(len(rl_input_df)))
         rl_input_df = rl_input_df.drop_duplicates(['ID', 'comp', 'split_part1', 'split_part2'])
@@ -160,8 +162,9 @@ class WebAsKB_PtrVocabNet():
         print('# rewards below tresh: {:}'.format((((rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH) & \
                                                     (rl_input_df['Reward_MRR'] > 0)) * 1.0).sum()))
 
-        # all cases of reward under tresh will be zero
-
+        noisy_sup = rl_input_df[rl_input_df['filename'] == 'noisy_sup_rewarded.json.zip'].copy(deep=True)
+        noisy_sup.loc[((noisy_sup['filename'] == 'noisy_sup_rewarded.json.zip') & \
+                        (noisy_sup['Reward_MRR'] < config.MIN_REWARD_TRESH)), 'Reward_MRR']  = config.MIN_REWARD_TRESH
 
         # in questions with all rewards zero
         print('Dropping examples with all zero eward')
@@ -169,7 +172,10 @@ class WebAsKB_PtrVocabNet():
         rl_input_df_zero_indicator.loc[rl_input_df_zero_indicator['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
         best_result_per_example = rl_input_df_zero_indicator.groupby('ID')['Reward_MRR'].max()
         zero_mrr_examples = best_result_per_example[best_result_per_example==0]
+
         rl_input_df = rl_input_df[~rl_input_df['ID'].isin(zero_mrr_examples.index)]
+
+        rl_input_df = rl_input_df.append(noisy_sup[~noisy_sup.index.isin(rl_input_df.index)],ignore_index=True)
 
 
         # all noisy supervision samples recieve reward of 0.1 if there previous reward is 0
@@ -196,6 +202,7 @@ class WebAsKB_PtrVocabNet():
         print(rl_input_df['filename'].value_counts())
 
         rl_input_df = rl_input_df.sort_values(by=['ID'])
+        rl_input_df = rl_input_df.reset_index(drop=True)
 
         print('Processing time: ' + str(datetime.datetime.now() - start))
         print('Total number of stored samples: ' + str(len(rl_input_df)))

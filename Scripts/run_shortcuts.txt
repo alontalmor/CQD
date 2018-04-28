@@ -1,9 +1,9 @@
 
 # examples of run commands with params
-preproc_RL --name rl_cascade1_epoch0-6 --datadir rl_cascade1_epoch0-6 --eval_set train
+preproc_RL --name rl_cascade1_epoch0-7 --datadir rl_cascade1_epoch0-7 --eval_set train
 
 # Training of 2 epochs, second using 2 distribution samples of model from epoch 1
-train_RL --name rl_cascade1_epoch0-13 --datadir rl_cascade1_epoch0-6 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --reward_sub_mean --epsilon_greedy 0.001
+train_RL --name rl_cascade1_epoch0-14 --datadir rl_cascade1_epoch0-7 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --reward_sub_mean --epsilon_greedy 0.001
 
 train_RL --name rl_1skip_full --datadir rl_1skip_full --modeldir rl_1skip_full --eval_set dev
 

@@ -36,9 +36,12 @@ This model was trained on the dataset [ComplexWebQuestions](http://nlp.cs.tau.ac
 5.  Install the required dependencies:
 
     ```
-    pip3 install -r requirements.txt
+    pip3 install -r requirements_cloud.txt
     ```
 6.  Install pytorch 0.3.1 from their [website](http://pytorch.org/):
+
+torch-0.3.0.post4-cp36-cp36m-macosx_10_7_x86_64.whl
+http://download.pytorch.org/whl/cu80/torch-0.3.0.post4-cp36-cp36m-linux_x86_64.whl
 
 7.  Download external libraries:
 
