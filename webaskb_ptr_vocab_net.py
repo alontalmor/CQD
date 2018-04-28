@@ -28,14 +28,14 @@ class WebAsKB_PtrVocabNet():
         print("Read %s sentence pairs" % len(split_dataset))
         print("Counting words...")
 
-        split_dataset = [split_dataset[i] for i in  np.random.permutation(len(split_dataset))]
+        #split_dataset = [split_dataset[i] for i in  np.random.permutation(len(split_dataset))]
 
         input_lang.addWord('None')
         pairs = []
         for ind,question in enumerate(split_dataset):
 
             # training is done using only composition and conjunction examples
-            if is_training_set and question['comp'] != 'composition' and question['comp'] != 'conjunction':
+            if (is_training_set or config.rerun_program) and question['comp'] != 'composition' and question['comp'] != 'conjunction':
                 continue
 
             x = []
@@ -59,6 +59,9 @@ class WebAsKB_PtrVocabNet():
                 y = question['output_seq']
             elif 'program' in question and question['program'] == question['program']:
                 y = question['program']# RL training, always take the actual trajectory as target.
+                # PATCH for some invalid programs..
+                if y[-1] != 34:
+                    y.append(34)
             else:
                 if question['pointer_ind'] == question['pointer_ind']:
                     for pointer_ind, seq2seq_output in zip(question['pointer_ind'], question['seq2seq_output']):
@@ -129,9 +132,9 @@ class WebAsKB_PtrVocabNet():
             print('pre-processing the following files: ' +   str(filenames))
 
             # making sure noisy sup is added first (because of the default MIN_REWARD_TRESH values
-            if 'noisy_sup.json.zip' in filenames:
-                filenames.remove('noisy_sup.json.zip')
-                filenames = ['noisy_sup.json.zip'] + filenames
+            if 'noisy_sup_rewarded.json.zip' in filenames:
+                filenames.remove('noisy_sup_rewarded.json.zip')
+                filenames = ['noisy_sup_rewarded.json.zip'] + filenames
 
             for filename in filenames:
                 if filename.find('.json')>-1:
@@ -158,12 +161,13 @@ class WebAsKB_PtrVocabNet():
                                                     (rl_input_df['Reward_MRR'] > 0)) * 1.0).sum()))
 
         # all cases of reward under tresh will be zero
-        #rl_input_df.loc[rl_input_df['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
 
 
         # in questions with all rewards zero
         print('Dropping examples with all zero eward')
-        best_result_per_example = rl_input_df.groupby('ID')['Reward_MRR'].max()
+        rl_input_df_zero_indicator = rl_input_df.copy()
+        rl_input_df_zero_indicator.loc[rl_input_df_zero_indicator['Reward_MRR'] < config.MIN_REWARD_TRESH, 'Reward_MRR'] = 0
+        best_result_per_example = rl_input_df_zero_indicator.groupby('ID')['Reward_MRR'].max()
         zero_mrr_examples = best_result_per_example[best_result_per_example==0]
         rl_input_df = rl_input_df[~rl_input_df['ID'].isin(zero_mrr_examples.index)]
 
@@ -188,6 +192,10 @@ class WebAsKB_PtrVocabNet():
         #    data['Reward_MRR'] /= len(data['Reward_MRR'])
         #    return data
         #rl_input_df = rl_input_df.groupby('ID').apply(normalize)
+
+        print(rl_input_df['filename'].value_counts())
+
+        rl_input_df = rl_input_df.sort_values(by=['ID'])
 
         print('Processing time: ' + str(datetime.datetime.now() - start))
         print('Total number of stored samples: ' + str(len(rl_input_df)))

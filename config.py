@@ -75,9 +75,11 @@ class Config:
         self.output_size = 29
 
         self.use_teacher_forcing = True
-        self.test_teacher_forcing = False
+        self.rerun_program = False
         self.teacher_forcing_full_until = 10000
         self.teacher_forcing_partial_until = 30000
+
+        self.ignore_non_comp_input = False
 
 
         # used to limit size of dev set when training

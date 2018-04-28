@@ -551,6 +551,12 @@ class WebAsKB_PtrVocabNet_Model():
             output[0].update({'p1':mask_state['P1'], 'p1_sup': p1_sup, \
                     'p2':mask_state['P2'], 'p2_sup': p2_sup, 'comp_sup': comp_sup})
 
+        if config.rerun_program:
+            output[0].update({'Reward_MRR':pairs_dev['aux_data']['Reward_MRR'], \
+                              'Simp_Reward_MRR':pairs_dev['aux_data']['Simp_Reward_MRR'], \
+                              'max_comp_wa_conf': pairs_dev['aux_data']['max_comp_wa_conf'], \
+                              'max_simp_wa_conf': pairs_dev['aux_data']['max_simp_wa_conf']})
+
         if config.SAVE_DISTRIBUTIONS:
             output[0].update({'output_dists': output_dists,\
                     'output_masks': output_masks})
@@ -609,19 +615,20 @@ class WebAsKB_PtrVocabNet_Model():
                 else:
                     loss += self.criterion(decoder_output, target_variable[di])
 
-            if config.use_output_masking:
-                curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
-            else:
-                curr_output = np.argmax(decoder_output.data)
-
-            if DO_TECHER_FORCING:
+            if DO_TECHER_FORCING or config.rerun_program:
+                curr_output = target_variable[di].data[0]
                 decoder_input = target_variable[di]
                 #if output_mask[target_variable[di].data[0]] != 1:
                 #    assert()
                 result.append(target_variable[di].data[0])
             else:
+                if config.use_output_masking:
+                    curr_output = np.argmax(decoder_output.data - ((output_mask == 0).float() * 1000))
+                else:
+                    curr_output = np.argmax(decoder_output.data)
                 decoder_input = Variable(torch.LongTensor([curr_output]))
                 result.append(curr_output)
+
             output_prob += decoder_output.data[0].numpy()[curr_output]
             output_masks.append(output_mask.int().tolist())
             output_dists.append((output_dist.data[0] * 100).round().int().tolist())

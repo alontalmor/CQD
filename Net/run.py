@@ -34,7 +34,7 @@ class NNRun():
             self.iteration += 1
 
             # question number choice is not randomized (order of question was already randomized)
-            chosen_question = self.iteration %  len(self.pairs_trian_index)
+            chosen_question = self.iteration % len(self.pairs_trian_index)
 
             example_traj_inds = self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]]
 
@@ -157,7 +157,7 @@ class NNRun():
             testing_pair = pairs_dev[test_iter]
 
             test_loss , output_seq, loss, output_dists, output_masks, mask_state, output_prob  = \
-                self.model.forward_func(testing_pair['x'], testing_pair['y'],DO_TECHER_FORCING=config.test_teacher_forcing)
+                self.model.forward_func(testing_pair['x'], testing_pair['y'])
             self.test_loss += test_loss
 
             # generating model output

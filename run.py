@@ -52,7 +52,7 @@ elif args.operation == 'run_model':
         for dirname, dirnames, filenames in os.walk(config.parent_data_dir + config.datadir):
             for filename in filenames:
                 if filename.find('json.zip') > -1:
-                    print('running on' + filename)
+                    print('running on: ' + filename)
                     config.eval_set = filename
                     ptrnet = WebAsKB_PtrVocabNet()
                     ptrnet.load_data(config.parent_data_dir + config.datadir, '', config.eval_set)
