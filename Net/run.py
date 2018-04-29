@@ -42,11 +42,13 @@ class NNRun():
             if config.RL_Training:
                 rewards = pd.Series([self.pairs_train[ind]['aux_data']['Reward_MRR'] for ind in example_traj_inds])
                 model_probs = np.exp(pd.Series([self.pairs_train[ind]['aux_data']['model_prob'] for ind in example_traj_inds]))
+                norm_model_probs = model_probs / model_probs.sum()
 
                 if config.reward_sub_mean:
                     if len(rewards)>1:
                         # sub weighted average of traj model prob * reward
-                        rewards -= (model_probs * rewards).sum() / model_probs.sum()
+                        rewards -= (norm_model_probs * rewards).sum()
+                        rewards *= norm_model_probs
                         #rewards += config.MIN_REWARD_TRESH / len(rewards)
 
                 if config.devide_by_traj_num:
@@ -72,7 +74,7 @@ class NNRun():
                 reward = None
                 if config.RL_Training:
                     reward = float(rewards.iloc[ind])
-                    if reward == 0:
+                    if abs(reward)<0.005:
                         continue
 
                 # Teacher forcing
