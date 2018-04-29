@@ -74,7 +74,7 @@ class NNRun():
                 reward = None
                 if config.RL_Training:
                     reward = float(rewards.iloc[ind])
-                    if abs(reward)<0.005:
+                    if abs(reward)<0.0005:
                         continue
 
                 # Teacher forcing
