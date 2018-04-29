@@ -42,6 +42,8 @@ class Config:
             self.USE_CLOUD_STORAGE = True
             self.use_cloud_logs = True
 
+        self.debug_net = False
+
         if not os.path.isdir(self.base_dir):
             os.mkdir(self.base_dir)
 
@@ -56,6 +58,7 @@ class Config:
 
         # Neural param
         self.LR = 0.007
+
         self.ADA_GRAD_LR_DECAY = 1e-6
         self.ADA_GRAD_L2 = 3e-4
         self.dropout_p = 0.25

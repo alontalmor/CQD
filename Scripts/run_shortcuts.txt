@@ -3,7 +3,7 @@
 preproc_RL --name rl_cascade1_epoch0-7 --datadir rl_cascade1_epoch0-7 --eval_set train
 
 # Training of 2 epochs, second using 2 distribution samples of model from epoch 1
-train_RL --name rl_cascade1_epoch0-16 --datadir rl_cascade1_epoch0-7 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --reward_sub_mean --epsilon_greedy 0.001
+train_RL --name rl_cascade1_epoch0-16 --datadir rl_cascade1_epoch0-7 --modeldir rl_cascade0_epoch2 --eval_set dev --evaluate_every 3000 --MAX_ITER 100000 --skip_limit 1 --reward_sub_mean --epsilon_greedy 0.001 --ADA_GRAD_LR_DECAY 0.0 --ADA_GRAD_L2 1e-4 --LR 0.0007
 
 train_RL --name rl_1skip_full --datadir rl_1skip_full --modeldir rl_1skip_full --eval_set dev
 
