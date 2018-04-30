@@ -691,10 +691,7 @@ class WebAsKB_PtrVocabNet_Model():
             #decoder_output.register_hook(print)
 
             if di<len(target_variable):
-                if config.RL_Training:
-                    loss += self.criterion(decoder_output, target_variable[di]) * reward
-                else:
-                    loss += self.criterion(decoder_output, target_variable[di])
+                loss = self.criterion(decoder_output, target_variable[di])
 
             # RL training is always "Teacher forcing"
             curr_output = target_variable[di].data[0]

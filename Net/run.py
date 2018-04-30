@@ -29,6 +29,8 @@ class NNRun():
         self.best_accuracy_iter = 0
         self.iteration = 0
 
+        rl_update_data = []
+
         while self.iteration < self.best_accuracy_iter + config.NO_IMPROVEMENT_ITERS_TO_STOP \
                 and self.iteration < config.MAX_ITER:
             self.iteration += 1
@@ -39,31 +41,12 @@ class NNRun():
             example_traj_inds = self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]]
 
             # normalizing rewards
-            if config.RL_Training:
-                rewards = pd.Series([self.pairs_train[ind]['aux_data']['Reward_MRR'] for ind in example_traj_inds])
-                model_probs = np.exp(pd.Series([self.pairs_train[ind]['aux_data']['model_prob'] for ind in example_traj_inds]))
-                norm_model_probs = model_probs / model_probs.sum()
-
-                if config.reward_sub_mean:
-                    if len(rewards)>1:
-                        # sub weighted average of traj model prob * reward
-                        rewards -= (norm_model_probs * rewards).sum()
-                        rewards *= norm_model_probs
-                        #rewards += config.MIN_REWARD_TRESH / len(rewards)
-
-                if config.devide_by_traj_num:
-                    rewards /= len(rewards)
-
-                if config.max_margin_rl:
-                    if len(rewards) > 1:
-                        traj_plus = rewards.argmax()
-                        traj_minus = rewards.argmin()
-                        rewards = rewards[[traj_plus,traj_minus]]
-                        example_traj_inds = [example_traj_inds[traj_plus],example_traj_inds[traj_minus]]
-                        rewards +=  config.MIN_REWARD_TRESH - rewards.mean()
-
+            rewards = pd.Series([self.pairs_train[ind]['aux_data']['Reward_MRR'] for ind in example_traj_inds])
+            #model_probs = np.exp(pd.Series([self.pairs_train[ind]['aux_data']['model_prob'] for ind in example_traj_inds]))
+            #norm_model_probs = model_probs / model_probs.sum()
 
             # assuming rewards are normalized per question, running all question trajectories sequentially
+            example_rl_update_data = []
             for ind,chosen_ind in enumerate(example_traj_inds):
                 #chosen_ind = random.choice(self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]])
 
@@ -72,14 +55,44 @@ class NNRun():
                 target_variable = training_pair['y']
 
                 reward = None
-                if config.RL_Training:
-                    reward = float(rewards.iloc[ind])
-                    if abs(reward)<config.min_reward_update:
-                        continue
+                reward = float(rewards.iloc[ind])
+                #if abs(reward)<config.min_reward_update:
+                #    continue
 
-                train_loss, output_seq, loss , output_dists, output_masks, mask_state, output_prob = \
+                train_loss, output_seq, loss , output_dists, output_masks, mask_state, model_prob = \
                         self.model.forward_rl_train(input_variable, target_variable, reward, loss,
                                                         DO_TECHER_FORCING=True)
+
+                example_rl_update_data.append({'loss':loss,'model_prob':model_prob, 'reward':reward})
+
+            # Updateing rewards
+            model_probs = np.exp(pd.Series([traj['model_prob'] for traj in example_rl_update_data]))
+            norm_model_probs = model_probs / model_probs.sum()
+
+            if config.reward_sub_mean:
+                if len(rewards) > 1:
+                    # sub weighted average of traj model prob * reward
+                    rewards -= (norm_model_probs * rewards).sum()
+                    rewards *= norm_model_probs
+                    # rewards += config.MIN_REWARD_TRESH / len(rewards)
+
+            if config.devide_by_traj_num:
+                rewards /= len(rewards)
+
+            if config.max_margin_rl:
+                if len(rewards) > 1:
+                    traj_plus = rewards.argmax()
+                    traj_minus = rewards.argmin()
+                    rewards = rewards[[traj_plus, traj_minus]]
+                    example_traj_inds = [example_traj_inds[traj_plus], example_traj_inds[traj_minus]]
+                    rewards += config.MIN_REWARD_TRESH - rewards.mean()
+
+            # updating loss
+            for traj, reward in zip(example_rl_update_data, rewards):
+                traj['loss'] *= reward
+
+            rl_update_data += example_rl_update_data
+
 
             ### PRINT TRAINING STATS ##
             if self.iteration % config.print_every == 0:
@@ -106,6 +119,10 @@ class NNRun():
 
             # computing gradients (update is always per Example, so all RL trajectories are summed before step)
             if self.iteration % config.MINI_BATCH_SIZE == 0:
+                total_loss = 0
+                for traj in rl_update_data:
+                    total_loss += traj['loss']
+
                 self.train_loss += train_loss
 
                 loss.backward()
@@ -136,7 +153,8 @@ class NNRun():
                 print(self.model.encoder.GRU.weight_hh_l0.abs().max())
                 print(self.model.encoder.GRU.weight_ih_l0.abs().max())
 
-                loss = 0
+
+                rl_update_data = []
 
     def train_supervised(self):
         loss = 0
@@ -206,7 +224,7 @@ class NNRun():
                 else:
                     teacher_forcing = False
 
-                train_loss, output_seq, loss , output_dists, output_masks, mask_state, output_prob = \
+                train_loss, output_seq, loss , output_dists, output_masks, mask_state, model_prob = \
                         self.model.forward_func(input_variable, target_variable, reward, loss,
                                                         DO_TECHER_FORCING=teacher_forcing)
 
@@ -279,7 +297,7 @@ class NNRun():
                 print(test_iter)
             testing_pair = pairs_dev[test_iter]
 
-            test_loss , output_seq, loss, output_dists, output_masks, mask_state, output_prob  = \
+            test_loss , output_seq, loss, output_dists, output_masks, mask_state, model_prob  = \
                 self.model.forward_func(testing_pair['x'], testing_pair['y'])
             self.test_loss += test_loss
 
@@ -289,16 +307,16 @@ class NNRun():
                     if len(output_seq)>0 and config.generate_all_skips:
                         input_tokens = [token['dependentGloss'] for token in
                                         testing_pair['aux_data']['sorted_annotations']]
-                        for seq, ms, op in zip(output_seq, mask_state, output_prob):
+                        for seq, ms, op in zip(output_seq, mask_state, model_prob):
                             for skip_ind, token in enumerate(seq):
                                 if seq[skip_ind] < len(input_tokens) and random.random() < 0.1:
                                     model_output += self.model.format_model_output(testing_pair, seq, output_dists,
                                                                        output_masks, ms,op, skip_ind)
                     elif config.beam_search_gen or config.gen_trajectories:
-                        for seq, ms, op in zip(output_seq,mask_state,output_prob):
+                        for seq, ms, op in zip(output_seq,mask_state,model_prob):
                             model_output += self.model.format_model_output(testing_pair, seq, output_dists,output_masks, ms, op)
                     else:
-                        model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks, mask_state, output_prob)
+                        model_output +=  self.model.format_model_output(testing_pair, output_seq, output_dists, output_masks, mask_state, model_prob)
                 except Exception as inst:
                     if inst.args[0] == 'format_model_output_error':
                         if inst.args[1] in model_format_errors:
