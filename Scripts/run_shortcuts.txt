@@ -20,7 +20,7 @@ run_model --name reformat_files --modeldir rl_cascade0_epoch2 --datadir ALL_rl_c
 # output sampling
 sample_trajectories --name rl_cascade0_epoch0_sample --modeldir rl_cascade0_epoch0 --eval_set train --traj_per_question 2
 sample_trajectories --name rl_cascade0_epoch1_sample --modeldir rl_cascade0_epoch1 --eval_set train --traj_per_question 2
-sample_trajectories --name rl_cascade0_epoch2_3skip_traj_sample5 --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1 --skip_limit 3 --random_seed 5 --max_evalset_size 100 --store_as_csv
+sample_trajectories --name rl_cascade0_epoch2_3skip_traj_sample6 --modeldir rl_cascade0_epoch2 --eval_set train --traj_per_question 1 --skip_limit 3 --random_seed 6 --max_evalset_size 100 --store_as_csv
 
 rl_cascade0_epoch1
 #1 sample ptr_vocab ( data dir noisy supervision)

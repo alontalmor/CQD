@@ -219,6 +219,9 @@ class WebAsKB_PtrVocabNet():
     def train(self):
         self.net.run_training()
 
+    def train_rl(self):
+        self.net.train_rl()
+
     def eval(self):
         model_output = self.net.evaluate()
         config.store_json(model_output , config.split_points_dir + config.out_subdir ,config.eval_set )

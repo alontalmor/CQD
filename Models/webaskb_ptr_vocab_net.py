@@ -647,6 +647,77 @@ class WebAsKB_PtrVocabNet_Model():
             loss_value = 0
         return loss_value , result, loss, output_dists, output_masks , mask_state, output_prob
 
+    def forward_rl_train(self,input_variable, target_variable, reward = 0, loss=0,  DO_TECHER_FORCING=True):
+        encoder_hidden = self.encoder.initHidden()
+
+        input_length = len(input_variable)
+        target_length = len(target_variable)
+
+        encoder_outputs = Variable(torch.zeros(config.MAX_LENGTH, self.encoder.hidden_size))
+        encoder_outputs = encoder_outputs.cuda() if config.use_cuda else encoder_outputs
+
+        encoder_hiddens = Variable(torch.zeros(config.MAX_LENGTH, self.encoder.hidden_size))
+        encoder_hiddens = encoder_hiddens.cuda() if config.use_cuda else encoder_hiddens
+
+        for ei in range(input_length):
+            encoder_output, encoder_hidden = self.encoder(input_variable[ei], encoder_hidden)
+            encoder_outputs[ei] = encoder_output[0][0]
+            encoder_hiddens[ei] = encoder_hidden[0][0]
+
+        decoder_input = Variable(torch.LongTensor([[config.SOS_token]]))
+        decoder_input = decoder_input.cuda() if config.use_cuda else decoder_input
+
+        decoder_hidden = encoder_hidden
+        result = []
+        output_masks = []
+        output_dists = []
+        # Without teacher forcing: use its own predictions as the next input
+        sub_optimal_chosen = False
+        output_mask = None
+        output_dist = None
+        output_prob = 0
+        mask_state = None
+
+        di = 0
+        while di < config.MAX_LENGTH:
+            # output masking is used in RL to update number of skips etc...
+            if config.use_output_masking:
+                output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
+
+            decoder_output, decoder_hidden, output_dist = self.decoder(
+                decoder_input, decoder_hidden, encoder_hidden, encoder_hiddens, encoder_hidden, output_mask)
+
+            ## DEBUGING
+            #decoder_output.register_hook(print)
+
+            if di<len(target_variable):
+                if config.RL_Training:
+                    loss += self.criterion(decoder_output, target_variable[di]) * reward
+                else:
+                    loss += self.criterion(decoder_output, target_variable[di])
+
+            # RL training is always "Teacher forcing"
+            curr_output = target_variable[di].data[0]
+            decoder_input = target_variable[di]
+            result.append(target_variable[di].data[0])
+
+            output_prob += decoder_output.data[0].numpy()[curr_output]
+            output_masks.append(output_mask.int().tolist())
+            output_dists.append((output_dist.data[0] * 100).round().int().tolist())
+
+            ## EOS or teacher forcing an len> target var
+            di += 1
+            if di >= len(target_variable):
+                # last masking (updating mask state with last program token)
+                if config.use_output_masking:
+                    output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
+                break
+
+        loss_value = loss.data[0] / target_length
+
+        return loss_value , result, loss, output_dists, output_masks , mask_state, output_prob
+
+
     def traj_sampling_forward(self, input_variable, target_variable, reward = 0, loss=0,  DO_TECHER_FORCING=False):
         loss_value = 0
         all_results = []

@@ -136,6 +136,7 @@ class Config:
         self.max_margin_rl = False
 
         self.MIN_REWARD_TRESH = 0.1
+        self.min_reward_update = 0.05
 
         #  data generation
         self.sample_output_dist = False
