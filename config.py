@@ -20,6 +20,8 @@ import socket
 import inspect
 from operator import itemgetter
 import zipfile
+pd.set_option('display.max_colwidth', 120)
+pd.set_option('display.width', 2000)
 
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
@@ -42,7 +44,7 @@ class Config:
             self.USE_CLOUD_STORAGE = True
             self.use_cloud_logs = True
 
-        self.debug_net = False
+        self.debug_nn = False
 
         if not os.path.isdir(self.base_dir):
             os.mkdir(self.base_dir)

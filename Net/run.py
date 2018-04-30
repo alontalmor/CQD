@@ -63,10 +63,11 @@ class NNRun():
                         self.model.forward_rl_train(input_variable, target_variable, reward, loss,
                                                         DO_TECHER_FORCING=True)
 
-                example_rl_update_data.append({'loss':loss,'model_prob':model_prob, 'reward':reward})
+                example_rl_update_data.append({'loss':loss,'log_model_prob':model_prob,'model_prob':np.exp(model_prob), \
+                                               'reward':reward, 'ID':training_pair['aux_data']['ID']})
 
             # Updateing rewards
-            model_probs = np.exp(pd.Series([traj['model_prob'] for traj in example_rl_update_data]))
+            model_probs = pd.Series([traj['model_prob'] for traj in example_rl_update_data])
             norm_model_probs = model_probs / model_probs.sum()
 
             if config.reward_sub_mean:
@@ -90,6 +91,9 @@ class NNRun():
             # updating loss
             for traj, reward in zip(example_rl_update_data, rewards):
                 traj['loss'] *= reward
+
+                # Debug net:
+                traj['model_scaled_reward'] = reward
 
             rl_update_data += example_rl_update_data
 
@@ -127,11 +131,17 @@ class NNRun():
 
                 loss.backward()
 
+                grad_max_vals = []
+                grad_mean_vals = []
+                for p in filter(lambda p: p.grad is not None, self.model.encoder.parameters()):
+                    grad_max_vals.append(p.grad.data.abs().max())
+                    grad_mean_vals.append(p.grad.data.abs().mean())
+                for p in filter(lambda p: p.grad is not None, self.model.decoder.parameters()):
+                    grad_max_vals.append(p.grad.data.abs().max())
+                    grad_mean_vals.append(p.grad.data.abs().mean())
+
                 if config.print_all_grad:
-                    for p in filter(lambda p: p.grad is not None, self.model.encoder.parameters()):
-                        print(p.grad.data.abs().max())
-                    for p in filter(lambda p: p.grad is not None, self.model.decoder.parameters()):
-                        print(p.grad.data.abs().max())
+                    pass
 
                 if config.grad_clip_value is not None:
                     for p in filter(lambda p: p.grad is not None, self.model.encoder.parameters()):
@@ -142,18 +152,27 @@ class NNRun():
                 #torch.nn.utils.clip_grad_value_(self.model.encoder.parameters(), 1)
                 #torch.nn.utils.clip_grad_value_(self.model.decoder.parameters(), 1)
 
-                print(self.model.decoder.out.weight.abs().max())
-                print(self.model.encoder.GRU.weight_hh_l0.abs().max())
-                print(self.model.encoder.GRU.weight_ih_l0.abs().max())
+                #print(self.model.decoder.out.weight.abs().max())
+                #print(self.model.encoder.GRU.weight_hh_l0.abs().max())
+                #print(self.model.encoder.GRU.weight_ih_l0.abs().max())
+
+
+
+                #print(self.iteration)
+                #print(self.model.decoder.out.weight.abs().max())
+                #print(self.model.encoder.GRU.weight_hh_l0.abs().max())
+                #print(self.model.encoder.GRU.weight_ih_l0.abs().max())
+
+                debug_nn_df = pd.DataFrame(rl_update_data)
+                if config.debug_nn:
+                    config.write_log('DEBUG_NN', 'mini batch update',
+                                 {'max grads':np.max(grad_max_vals), \
+                                  'mean grads':np.mean(grad_mean_vals), \
+                                  'mean_prob':debug_nn_df.groupby('ID')['model_prob'].mean().mean(), \
+                                  'mean_prob_mass':debug_nn_df.groupby('ID')['model_prob'].sum().mean(), \
+                                  'iteration': self.iteration})
 
                 self.model.optimizer_step()
-
-                print(self.iteration)
-                print(self.model.decoder.out.weight.abs().max())
-                print(self.model.encoder.GRU.weight_hh_l0.abs().max())
-                print(self.model.encoder.GRU.weight_ih_l0.abs().max())
-
-
                 rl_update_data = []
 
     def train_supervised(self):

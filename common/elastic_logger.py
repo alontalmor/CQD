@@ -23,6 +23,10 @@ class ElasticLogger():
             self.default_val_dict[key] = context_dict[key]
 
     def write_log(self, level, message, context_dict={},push_bulk=True):
+        if level == 'DEBUG_NN':
+            LOG_INDEX = 'debug_nn'
+        else:
+            LOG_INDEX = self.LOG_INDEX
         fields_to_print = list(context_dict.keys())
         common_fields = {'log_timestamp': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]}
         context_dict.update(common_fields)
@@ -45,7 +49,7 @@ class ElasticLogger():
         try:
             self.bulk_data.append({
                 "index": {
-                    "_index": self.LOG_INDEX,
+                    "_index": LOG_INDEX,
                     "_type": level,
                 }
             })
@@ -53,7 +57,7 @@ class ElasticLogger():
             self.bulk_data.append(context_dict)
 
             if (len(self.bulk_data) > self.LOG_BULK_SIZE * 2 or push_bulk) and config.use_cloud_logs:
-                res = self.es.bulk(index=self.LOG_INDEX, body=self.bulk_data, refresh=True)
+                res = self.es.bulk(index=LOG_INDEX, body=self.bulk_data, refresh=True)
                 self.bulk_data = []
                 if res['errors']:
                     print("error writing logs!!")
