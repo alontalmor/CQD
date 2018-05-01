@@ -82,6 +82,11 @@ class NNRun():
 
             if config.max_margin_rl:
                 if len(rewards) > 1:
+                    traj_plus_minus_mat = pd.DataFrame()
+                    for i in range(len(rewards)):
+                        for j in range(i+1,len(rewards)):
+                            traj_plus_minus_mat.iloc[i,j] = rewards[i]
+                            print(i,j,rewards.iloc[i],rewards.iloc[j])
                     traj_plus = rewards.argmax()
                     traj_minus = rewards.argmin()
                     rewards = rewards[[traj_plus, traj_minus]]
@@ -166,7 +171,10 @@ class NNRun():
                 debug_nn_df = pd.DataFrame(rl_update_data)
                 if config.debug_nn:
                     config.write_log('DEBUG_NN', 'mini batch update',
-                                 {'max grads':np.max(grad_max_vals), \
+                                 {'loss':total_loss.data[0], \
+                                  'loss_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']==1].iterrows()]), \
+                                  'loss_not_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']<1].iterrows()]), \
+                                  'max grads':np.max(grad_max_vals), \
                                   'mean grads':np.mean(grad_mean_vals), \
                                   'mean_prob':debug_nn_df.groupby('ID')['model_prob'].mean().mean(), \
                                   'mean_prob_mass':debug_nn_df.groupby('ID')['model_prob'].sum().mean(), \
