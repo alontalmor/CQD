@@ -135,7 +135,7 @@ class NNRun():
                     for token_ind in range(len(traj['loss'])):
                         total_loss += traj['loss'][token_ind]
 
-                self.train_loss += total_loss
+                self.train_loss += total_loss.data[0]
 
                 total_loss.backward()
 
