@@ -96,7 +96,8 @@ class NNRun():
 
             # updating loss
             for traj, reward in zip(example_rl_update_data, rewards):
-                traj['loss'] *= reward
+                for token_ind in range(len(traj['loss'])):
+                    traj['loss'][token_ind] *= reward
 
                 # Debug net:
                 traj['model_scaled_reward'] = reward
@@ -131,11 +132,12 @@ class NNRun():
             if self.iteration % config.MINI_BATCH_SIZE == 0:
                 total_loss = 0
                 for traj in rl_update_data:
-                    total_loss += traj['loss']
+                    for token_ind in range(len(traj['loss'])):
+                        total_loss += traj['loss'][token_ind]
 
-                self.train_loss += train_loss
+                self.train_loss += total_loss
 
-                loss.backward()
+                total_loss.backward()
 
                 grad_max_vals = []
                 grad_mean_vals = []
@@ -173,8 +175,8 @@ class NNRun():
                 if config.debug_nn:
                     config.write_log('DEBUG_NN', 'mini batch update',
                                  {'loss':total_loss.data[0], \
-                                  'loss_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']==1].iterrows()]), \
-                                  'loss_not_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']<1].iterrows()]), \
+                                  #'loss_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']==1].iterrows()]), \
+                                  #'loss_not_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']<1].iterrows()]), \
                                   'max grads':np.max(grad_max_vals), \
                                   'mean grads':np.mean(grad_mean_vals), \
                                   'mean_prob':debug_nn_df.groupby('ID')['model_prob'].mean().mean(), \

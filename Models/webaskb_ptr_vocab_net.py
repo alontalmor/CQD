@@ -677,6 +677,7 @@ class WebAsKB_PtrVocabNet_Model():
         output_dist = None
         output_prob = 0
         mask_state = None
+        loss = []
 
         di = 0
         while di < config.MAX_LENGTH:
@@ -691,7 +692,7 @@ class WebAsKB_PtrVocabNet_Model():
             #decoder_output.register_hook(print)
 
             if di<len(target_variable):
-                loss = self.criterion(decoder_output, target_variable[di])
+                loss.append(self.criterion(decoder_output, target_variable[di]))
 
             # RL training is always "Teacher forcing"
             curr_output = target_variable[di].data[0]
@@ -710,7 +711,8 @@ class WebAsKB_PtrVocabNet_Model():
                     output_mask, mask_state = self.calc_output_mask(input_variable, result, mask_state)
                 break
 
-        loss_value = loss.data[0] / target_length
+        loss_value = 0
+        #loss.data[0] / target_length
 
         return loss_value , result, loss, output_dists, output_masks , mask_state, output_prob
 
