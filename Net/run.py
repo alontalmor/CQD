@@ -56,8 +56,8 @@ class NNRun():
 
                 reward = None
                 reward = float(rewards.iloc[ind])
-                #if abs(reward)<config.min_reward_update:
-                #    continue
+                if config.devide_by_traj_num and abs(reward) < config.min_reward_update:
+                    continue
 
                 train_loss, output_seq, loss , output_dists, output_masks, mask_state, model_prob = \
                         self.model.forward_rl_train(input_variable, target_variable, reward, loss,
@@ -68,6 +68,7 @@ class NNRun():
 
             # Updateing rewards
             model_probs = pd.Series([traj['model_prob'] for traj in example_rl_update_data])
+            rewards = pd.Series([traj['reward'] for traj in example_rl_update_data])
             norm_model_probs = model_probs / model_probs.sum()
 
             if config.reward_sub_mean:

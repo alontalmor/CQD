@@ -76,7 +76,7 @@ class Config:
         self.evalset_offset = 0
         self.max_evalset_size = 40000 # used to limit size of dev set when training
 
-        self.MINI_BATCH_SIZE = 100
+        self.MINI_BATCH_SIZE = 10
         self.output_size = 29
 
         self.use_teacher_forcing = True
