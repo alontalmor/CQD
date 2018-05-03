@@ -174,7 +174,7 @@ class NNRun():
                 debug_nn_df = pd.DataFrame(rl_update_data)
                 if config.debug_nn:
                     config.write_log('DEBUG_NN', 'mini batch update',
-                                 {'loss':total_loss.data[0], \
+                                 {'loss':total_loss.data[0] / config.MINI_BATCH_SIZE, \
                                   #'loss_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']==1].iterrows()]), \
                                   #'loss_not_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']<1].iterrows()]), \
                                   'max grads':np.max(grad_max_vals), \
