@@ -109,7 +109,7 @@ class Config:
         self.use_cuda = False
         self.USE_GLOVE = True
         self.WRITE_TO_TENSORBOARD = False
-        self.LOAD_SAVED_MODEL = True
+        self.LOAD_SAVED_MODEL = False
         self.PERFORM_TRAINING = False
         self.SAVE_DISTRIBUTIONS = False
 
@@ -153,8 +153,12 @@ class Config:
 
     def init(self):
         self.out_subdir = self.name + '/'
+        if self.modeldir != '':
+            self.modeldir += '/'
+            self.LOAD_SAVED_MODEL = True
         self.datadir += '/'
-        self.modeldir += '/'
+
+
 
         # Paths do data subdirs (add_data_dir also dynamically creates the dir if it doesnt exist)
         self.add_data_dir('complexwebquestions_dir', self.base_dir + "complex_web_questions/")

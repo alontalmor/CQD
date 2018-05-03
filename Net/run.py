@@ -178,7 +178,7 @@ class NNRun():
                                   #'loss_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']==1].iterrows()]), \
                                   #'loss_not_reward_1':np.sum([row['loss'].data[0] for ind,row in debug_nn_df[debug_nn_df['reward']<1].iterrows()]), \
                                   'max grads':np.max(grad_max_vals), \
-                                  'mean grads':np.mean(grad_mean_vals), \
+                                  'norm grads':np.linalg.norm(grad_mean_vals), \
                                   'mean_prob':debug_nn_df.groupby('ID')['model_prob'].mean().mean(), \
                                   'mean_prob_mass':debug_nn_df.groupby('ID')['model_prob'].sum().mean(), \
                                   'iteration': self.iteration})

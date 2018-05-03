@@ -83,7 +83,7 @@ elif args.operation == 'preproc_RL':
 
 elif args.operation == 'train_RL':
     config.PERFORM_TRAINING = True
-    config.LOAD_SAVED_MODEL = True
+    #config.LOAD_SAVED_MODEL = True
     config.RL_Training = True
     config.always_save_model = True
 

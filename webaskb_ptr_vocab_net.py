@@ -21,6 +21,7 @@ class WebAsKB_PtrVocabNet():
     def prepareData(self, split_dataset, is_training_set, input_lang=None, output_lang=None):
         if input_lang is None:
             input_lang = Lang('input')
+        if output_lang is None:
             output_lang = Lang('output')
 
         pairs_index = {}
@@ -99,6 +100,9 @@ class WebAsKB_PtrVocabNet():
         else:
             self.input_lang = None
             self.output_lang = None
+
+        # PATCH
+        self.output_lang = config.load_pkl(config.neural_model_dir + 'rl_cascade0_epoch2/', 'output_lang')
 
 
 
