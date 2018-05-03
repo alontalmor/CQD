@@ -73,8 +73,6 @@ class WebAsKB_PtrVocabNet():
                         else:
                             y.append(config.MAX_LENGTH + output_lang.word2index[seq2seq_output])
 
-
-
             if config.use_cuda:
                 y = Variable(torch.LongTensor(y).view(-1, 1)).cuda()
             else:

@@ -31,12 +31,14 @@ class NNRun():
 
         rl_update_data = []
 
+        random_order = np.random.permutation(len(self.pairs_trian_index))
+
         while self.iteration < self.best_accuracy_iter + config.NO_IMPROVEMENT_ITERS_TO_STOP \
                 and self.iteration < config.MAX_ITER:
             self.iteration += 1
 
             # question number choice is not randomized (order of question was already randomized)
-            chosen_question = self.iteration % len(self.pairs_trian_index)
+            chosen_question = random_order[self.iteration % len(self.pairs_trian_index)]
 
             example_traj_inds = self.pairs_trian_index[list(self.pairs_trian_index.keys())[chosen_question]]
 
