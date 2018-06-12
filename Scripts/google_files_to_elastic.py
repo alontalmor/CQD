@@ -78,7 +78,10 @@ def sync_local_mongo():
                     bulk_data.append(new_record)
 
                     if len(bulk_data)>10:
-                        res = es.bulk(index='google_cache', body=bulk_data, refresh=True)
+                        try:
+                            res = es.bulk(index='google_cache', body=bulk_data, refresh=True)
+                        except:
+                            print("error writing logs!!")
                         bulk_data = []
                         if res['errors']:
                             print("error writing logs!!")
